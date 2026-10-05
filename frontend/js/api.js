@@ -3,22 +3,20 @@
  * Handles local slide metadata and client-side localStorage annotation persistence.
  */
 class PathologyAPI {
-  constructor() {
-    this.isBackendAvailable = false;
-  }
+  static isBackendAvailable = false;
 
-  async checkHealth() {
+  static async checkHealth() {
     return false;
   }
 
-  async getSlides() {
+  static async getSlides() {
     return [
       { id: 'demo-breast', name: 'Breast Tissue Microarray (Demo)', mpp: 0.25, magnification: '40x', dimensions: [40960, 30720] },
       { id: 'demo-kidney', name: 'Kidney Glomeruli (Demo)', mpp: 0.50, magnification: '20x', dimensions: [20480, 15360] }
     ];
   }
 
-  async getSlideMetadata(slideId) {
+  static async getSlideMetadata(slideId) {
     if (slideId === 'demo-kidney') {
       return {
         id: 'demo-kidney',
@@ -43,7 +41,7 @@ class PathologyAPI {
     };
   }
 
-  async getAnnotations(slideId) {
+  static async getAnnotations(slideId) {
     const local = localStorage.getItem(`histomics_ann_${slideId}`);
     if (local) {
       try { return JSON.parse(local); } catch (e) {}
@@ -51,11 +49,15 @@ class PathologyAPI {
     return this.getSampleDemoAnnotations(slideId);
   }
 
-  async saveAnnotations(slideId, annotations) {
-    localStorage.setItem(`histomics_ann_${slideId}`, JSON.stringify(annotations));
+  static async saveAnnotations(slideId, annotations) {
+    try {
+      localStorage.setItem(`histomics_ann_${slideId}`, JSON.stringify(annotations));
+    } catch (e) {
+      console.warn("Could not save annotations to localStorage:", e);
+    }
   }
 
-  getSampleDemoAnnotations(slideId) {
+  static getSampleDemoAnnotations(slideId) {
     if (slideId === 'demo-kidney') {
       return [
         {
@@ -105,4 +107,12 @@ class PathologyAPI {
   }
 }
 
-window.PathologyAPI = new PathologyAPI();
+// Instance method proxies for backward compatibility
+PathologyAPI.prototype.checkHealth = PathologyAPI.checkHealth;
+PathologyAPI.prototype.getSlides = PathologyAPI.getSlides;
+PathologyAPI.prototype.getSlideMetadata = PathologyAPI.getSlideMetadata;
+PathologyAPI.prototype.getAnnotations = PathologyAPI.getAnnotations;
+PathologyAPI.prototype.saveAnnotations = PathologyAPI.saveAnnotations;
+PathologyAPI.prototype.getSampleDemoAnnotations = PathologyAPI.getSampleDemoAnnotations;
+
+window.PathologyAPI = PathologyAPI;
