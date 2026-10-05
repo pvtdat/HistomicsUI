@@ -140,40 +140,20 @@ class PathologyViewer {
 
   loadSlide(slideMetadata, tileSourceUrl) {
     this.currentSlideId = slideMetadata.id;
-    this.imageWidth = slideMetadata.width || 40960;
-    this.imageHeight = slideMetadata.height || 30720;
+    this.imageWidth = slideMetadata.roiWidth || slideMetadata.width || 40960;
+    this.imageHeight = slideMetadata.roiHeight || slideMetadata.height || 30720;
     this.mpp = slideMetadata.mpp || 0.25;
     this.nativeMagnification = slideMetadata.magnification || '40x';
-    
-    // If tile source is positioned on full SVS canvas (e.g. SVS slide ROI region)
-    if (slideMetadata.offsetX && slideMetadata.roiWidth) {
-      this.imageOffsetX = 0; // Canvas is full SVS
-      this.imageOffsetY = 0;
-    } else {
-      this.imageOffsetX = slideMetadata.offsetX || 0;
-      this.imageOffsetY = slideMetadata.offsetY || 0;
-    }
+    this.imageOffsetX = slideMetadata.offsetX || 0;
+    this.imageOffsetY = slideMetadata.offsetY || 0;
 
     let tileSource;
     if (tileSourceUrl) {
-      if (typeof tileSourceUrl === 'object' && tileSourceUrl.type === 'image' && slideMetadata.offsetX && slideMetadata.roiWidth) {
-        tileSource = {
-          type: 'image',
-          url: tileSourceUrl.url,
-          x: slideMetadata.offsetX / slideMetadata.width,
-          y: slideMetadata.offsetY / slideMetadata.width,
-          width: slideMetadata.roiWidth / slideMetadata.width
-        };
-      } else {
-        tileSource = tileSourceUrl;
-      }
-    } else if (slideMetadata.imageUrl && slideMetadata.offsetX && slideMetadata.roiWidth) {
+      tileSource = tileSourceUrl;
+    } else if (slideMetadata.imageUrl) {
       tileSource = {
         type: 'image',
-        url: slideMetadata.imageUrl,
-        x: slideMetadata.offsetX / slideMetadata.width,
-        y: slideMetadata.offsetY / slideMetadata.width,
-        width: slideMetadata.roiWidth / slideMetadata.width
+        url: slideMetadata.imageUrl
       };
     } else {
       tileSource = this.createSyntheticTileSource(this.imageWidth, this.imageHeight, slideMetadata.id);
@@ -411,8 +391,10 @@ class PathologyViewer {
 
     const width = Math.max(200, maxX - minX);
     const height = Math.max(200, maxY - minY);
+    const localMinX = minX - (this.imageOffsetX || 0);
+    const localMinY = minY - (this.imageOffsetY || 0);
 
-    const vpRect = this.viewer.viewport.imageToViewportRectangle(minX, minY, width, height);
+    const vpRect = this.viewer.viewport.imageToViewportRectangle(localMinX, localMinY, width, height);
     this.viewer.viewport.fitBounds(vpRect);
   }
 }
