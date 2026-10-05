@@ -22,3 +22,7 @@ ENV/
 
 node_modules/
 .eslintcache
+
+# Exclude large binary WSI slide data from git push
+frontend/data/*.svs
+frontend/data/*.png

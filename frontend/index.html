@@ -36,11 +36,13 @@
       <div class="slide-selector-container">
         <label for="slideSelect" class="sr-only">Select Slide</label>
         <select id="slideSelect" class="slide-select">
+          <option value="tcga-a2-a0st">TCGA-A2-A0ST (SVS Slide - HistomicsData)</option>
+          <option value="tcga-a1-a0sk">TCGA-A1-A0SK (HistomicsData Nuclei)</option>
           <option value="demo-breast">Breast Tissue Microarray (Demo)</option>
           <option value="demo-kidney">Kidney Glomeruli (Demo)</option>
-          <option value="upload-local">Local Image File...</option>
+          <option value="upload-local">Local Image / SVS File...</option>
         </select>
-        <input type="file" id="localFileInput" accept="image/*,.dzi,.xml" style="display: none;">
+        <input type="file" id="localFileInput" accept="image/*,.svs,.tif,.tiff,.dzi,.xml" style="display: none;">
       </div>
 
       <div class="header-actions">

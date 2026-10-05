@@ -277,6 +277,30 @@ class AnnotationManager {
     }
   }
 
+  autoDetectOffset() {
+    if (!this.annotations || this.annotations.length === 0 || !this.viewerManager) return;
+    let minX = Infinity, minY = Infinity;
+    this.annotations.forEach(ann => {
+      if (Array.isArray(ann.points)) {
+        ann.points.forEach(p => {
+          if (Array.isArray(p)) {
+            if (p[0] < minX) minX = p[0];
+            if (p[1] < minY) minY = p[1];
+          }
+        });
+      }
+    });
+
+    const imgW = this.viewerManager.imageWidth || 6477;
+    const imgH = this.viewerManager.imageHeight || 5551;
+    if (minX > imgW && minX < Infinity && (!this.viewerManager.imageOffsetX || this.viewerManager.imageOffsetX === 0)) {
+      this.viewerManager.imageOffsetX = minX - 100;
+    }
+    if (minY > imgH && minY < Infinity && (!this.viewerManager.imageOffsetY || this.viewerManager.imageOffsetY === 0)) {
+      this.viewerManager.imageOffsetY = minY - 100;
+    }
+  }
+
   saveStateForUndo() {
     this.undoStack.push(JSON.stringify(this.annotations));
     this.redoStack = []; // Clear redo on new action

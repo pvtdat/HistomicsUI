@@ -144,12 +144,38 @@ class PathologyViewer {
     this.imageHeight = slideMetadata.height || 30720;
     this.mpp = slideMetadata.mpp || 0.25;
     this.nativeMagnification = slideMetadata.magnification || '40x';
+    
+    // If tile source is positioned on full SVS canvas (e.g. SVS slide ROI region)
+    if (slideMetadata.offsetX && slideMetadata.roiWidth) {
+      this.imageOffsetX = 0; // Canvas is full SVS
+      this.imageOffsetY = 0;
+    } else {
+      this.imageOffsetX = slideMetadata.offsetX || 0;
+      this.imageOffsetY = slideMetadata.offsetY || 0;
+    }
 
     let tileSource;
     if (tileSourceUrl) {
-      tileSource = tileSourceUrl;
+      if (typeof tileSourceUrl === 'object' && tileSourceUrl.type === 'image' && slideMetadata.offsetX && slideMetadata.roiWidth) {
+        tileSource = {
+          type: 'image',
+          url: tileSourceUrl.url,
+          x: slideMetadata.offsetX / slideMetadata.width,
+          y: slideMetadata.offsetY / slideMetadata.width,
+          width: slideMetadata.roiWidth / slideMetadata.width
+        };
+      } else {
+        tileSource = tileSourceUrl;
+      }
+    } else if (slideMetadata.imageUrl && slideMetadata.offsetX && slideMetadata.roiWidth) {
+      tileSource = {
+        type: 'image',
+        url: slideMetadata.imageUrl,
+        x: slideMetadata.offsetX / slideMetadata.width,
+        y: slideMetadata.offsetY / slideMetadata.width,
+        width: slideMetadata.roiWidth / slideMetadata.width
+      };
     } else {
-      // High resolution synthetic histology slide generator for demonstration
       tileSource = this.createSyntheticTileSource(this.imageWidth, this.imageHeight, slideMetadata.id);
     }
 
@@ -347,7 +373,9 @@ class PathologyViewer {
   // Convert image pixel coordinates to screen (container) coordinates for SVG rendering
   imageToScreen(imagePoint) {
     if (!this.viewer || !this.viewer.viewport) return { x: 0, y: 0 };
-    const pt = new OpenSeadragon.Point(imagePoint.x, imagePoint.y);
+    const x = imagePoint.x - (this.imageOffsetX || 0);
+    const y = imagePoint.y - (this.imageOffsetY || 0);
+    const pt = new OpenSeadragon.Point(x, y);
     return this.viewer.viewport.imageToViewerElementCoordinates(pt);
   }
 
@@ -357,8 +385,8 @@ class PathologyViewer {
     const pt = new OpenSeadragon.Point(screenPoint.x, screenPoint.y);
     const imgPoint = this.viewer.viewport.viewerElementToImageCoordinates(pt);
     return {
-      x: Math.round(imgPoint.x),
-      y: Math.round(imgPoint.y)
+      x: Math.round(imgPoint.x + (this.imageOffsetX || 0)),
+      y: Math.round(imgPoint.y + (this.imageOffsetY || 0))
     };
   }
 

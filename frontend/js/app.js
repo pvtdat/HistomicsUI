@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (statusZoom) statusZoom.textContent = `${metrics.magnification}x`;
       if (statusMPP) statusMPP.textContent = `${metrics.currentMPP} μm`;
       if (window.sidebarController) window.sidebarController.updateZoomDisplay(metrics.magnification);
+      if (window.annotationManager) window.annotationManager.render();
     },
     onMouseMove: (coords) => {
       if (statusX) statusX.textContent = coords.x.toLocaleString();
@@ -52,6 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       PathologyAPI.saveAnnotations(viewerManager.currentSlideId, annotations);
     }
   });
+  window.annotationManager = annotationManager;
 
   // Initialize Controllers
   const toolbarController = new ToolbarController(annotationManager);
@@ -72,12 +74,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (statusMPP) statusMPP.textContent = `${meta.mpp || 0.25} μm`;
 
     // 2. Open tile source via frontend viewer
-    viewerManager.loadSlide(meta, null);
+    const tileSource = meta.imageUrl ? { type: 'image', url: meta.imageUrl } : null;
+    viewerManager.loadSlide(meta, tileSource);
 
     // 3. Load annotations
     const annList = await PathologyAPI.getAnnotations(slideId);
     annotationManager.annotations = annList;
     annotationManager.selectedId = null;
+    annotationManager.autoDetectOffset();
     annotationManager.render();
     sidebarController.renderAnnotationList(annList);
     sidebarController.showSelectedProperties(null);
@@ -102,24 +106,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         const objectUrl = URL.createObjectURL(file);
         const img = new Image();
         img.onload = () => {
+          const xminMatch = file.name.match(/xmin(\d+)/i);
+          const yminMatch = file.name.match(/ymin(\d+)/i);
+          const offsetX = xminMatch ? parseInt(xminMatch[1], 10) : 0;
+          const offsetY = yminMatch ? parseInt(yminMatch[1], 10) : 0;
+
           const customMeta = {
             id: `local-${Date.now()}`,
             name: file.name,
             dimensions: `${img.naturalWidth.toLocaleString()} × ${img.naturalHeight.toLocaleString()} px`,
             width: img.naturalWidth,
             height: img.naturalHeight,
-            magnification: '20x',
-            mpp: 0.5,
-            fileSize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`
+            magnification: '40x',
+            mpp: 0.25,
+            fileSize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+            imageUrl: objectUrl,
+            offsetX: offsetX,
+            offsetY: offsetY
           };
           sidebarController.updateSlideMetadata(customMeta);
           if (statusSlideSize) statusSlideSize.textContent = `${img.naturalWidth.toLocaleString()} × ${img.naturalHeight.toLocaleString()}`;
           if (statusMPP) statusMPP.textContent = `${customMeta.mpp} μm`;
 
           viewerManager.loadSlide(customMeta, { type: 'image', url: objectUrl });
-          annotationManager.annotations = [];
-          annotationManager.render();
-          sidebarController.renderAnnotationList([]);
+          
+          if (annotationManager.annotations.length > 0) {
+            annotationManager.autoDetectOffset();
+            annotationManager.render();
+            sidebarController.renderAnnotationList(annotationManager.annotations);
+          } else {
+            annotationManager.render();
+            sidebarController.renderAnnotationList([]);
+          }
         };
         img.src = objectUrl;
       }
@@ -137,6 +155,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           const reader = new FileReader();
           reader.onload = (evt) => {
             annotationManager.importJson(evt.target.result);
+            annotationManager.autoDetectOffset();
+            annotationManager.render();
           };
           reader.readAsText(file);
         }
@@ -220,5 +240,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Initial Load
-  loadSlide('demo-breast');
+  loadSlide('tcga-a2-a0st');
 });
