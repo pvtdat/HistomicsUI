@@ -347,16 +347,15 @@ class PathologyViewer {
   // Convert image pixel coordinates to screen (container) coordinates for SVG rendering
   imageToScreen(imagePoint) {
     if (!this.viewer || !this.viewer.viewport) return { x: 0, y: 0 };
-    const vpPoint = this.viewer.viewport.imageToViewportCoordinates(imagePoint.x, imagePoint.y);
-    const pixelPoint = this.viewer.viewport.viewportToPixelCoordinates(vpPoint);
-    return pixelPoint;
+    const pt = new OpenSeadragon.Point(imagePoint.x, imagePoint.y);
+    return this.viewer.viewport.imageToViewerElementCoordinates(pt);
   }
 
   // Convert screen coordinates back to image pixel coordinates
   screenToImage(screenPoint) {
     if (!this.viewer || !this.viewer.viewport) return { x: 0, y: 0 };
-    const vpPoint = this.viewer.viewport.pixelToViewportCoordinates(new OpenSeadragon.Point(screenPoint.x, screenPoint.y));
-    const imgPoint = this.viewer.viewport.viewportToImageCoordinates(vpPoint);
+    const pt = new OpenSeadragon.Point(screenPoint.x, screenPoint.y);
+    const imgPoint = this.viewer.viewport.viewerElementToImageCoordinates(pt);
     return {
       x: Math.round(imgPoint.x),
       y: Math.round(imgPoint.y)
