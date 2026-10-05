@@ -358,94 +358,194 @@ class AnnotationManager {
 
     const items = [];
 
-    // Helper to process Girder / HistomicsUI 'element' structure
-    const processElement = (el, parentName) => {
-      if (!el) return;
-
-      const type = el.type || 'polygon';
-      const id = el.id || el._id || `ann-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      const label = (el.label && el.label.value) || el.name || parentName || 'Nuclei';
-      
-      // Determine stroke / line color
-      let color = el.lineColor || el.color || '#10b981';
-      if (!color || color === 'rgba(0,0,0,0)' || color === 'transparent') {
-        color = '#10b981'; // default readable color for transparent outlines
+    // Safe point parsing helper ([x,y,z], [x,y], {x,y})
+    const parsePoint = (pt) => {
+      if (!pt) return null;
+      if (Array.isArray(pt) && pt.length >= 2) {
+        const x = Number(pt[0]);
+        const y = Number(pt[1]);
+        if (!isNaN(x) && !isNaN(y)) return [x, y];
+      } else if (typeof pt === 'object' && pt !== null) {
+        const x = Number(pt.x ?? pt.X);
+        const y = Number(pt.y ?? pt.Y);
+        if (!isNaN(x) && !isNaN(y)) return [x, y];
       }
+      return null;
+    };
 
-      // Convert 3D points [[x, y, z], ...] to 2D points [[x, y], ...]
-      let points2d = [];
-      if (Array.isArray(el.points)) {
-        points2d = el.points.map(pt => [pt[0], pt[1]]);
-      } else if (el.center) {
-        // Point or circle element
-        points2d = [[el.center[0], el.center[1]]];
-      }
-
-      if (points2d.length === 0) return;
-
-      // Map element type
-      let mappedType = 'polygon';
-      if (type === 'polyline' || type === 'polygon') {
-        mappedType = (el.closed !== false || type === 'polygon') ? 'polygon' : 'polygon';
-      } else if (type === 'rectangle' || type === 'bbox') {
-        mappedType = 'rectangle';
-        if (points2d.length > 2) {
-          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-          points2d.forEach(p => {
-            minX = Math.min(minX, p[0]);
-            maxX = Math.max(maxX, p[0]);
-            minY = Math.min(minY, p[1]);
-            maxY = Math.max(maxY, p[1]);
-          });
-          points2d = [[minX, minY], [maxX, maxY]];
+    // Color parsing helper
+    const parseColor = (el) => {
+      let color = el.lineColor || el.color || (el.properties && (el.properties.color || el.properties.stroke)) || '#10b981';
+      if (typeof color === 'string') {
+        if (color === 'rgba(0,0,0,0)' || color === 'transparent') {
+          color = '#10b981'; // default readable color for transparent outlines
         }
-      } else if (type === 'point' || type === 'circle') {
-        mappedType = 'point';
-        points2d = [points2d[0]];
+      } else if (Array.isArray(color) && color.length >= 3) {
+        color = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+      }
+      return color || '#10b981';
+    };
+
+    // Helper to process Girder / HistomicsUI / GeoJSON 'element' structure
+    const processElement = (el, parentName) => {
+      if (!el || typeof el !== 'object') return;
+
+      // Handle GeoJSON Feature
+      if (el.type === 'Feature' && el.geometry) {
+        const geom = el.geometry;
+        const color = parseColor(el);
+        const label = el.properties?.name || el.properties?.classification?.name || parentName || 'Feature';
+        const id = el.id || `ann-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+
+        if (geom.type === 'Polygon' && Array.isArray(geom.coordinates) && geom.coordinates[0]) {
+          const pts = geom.coordinates[0].map(parsePoint).filter(p => p !== null);
+          if (pts.length >= 3) {
+            items.push({ id, type: 'polygon', label, color, points: pts });
+          }
+        } else if (geom.type === 'MultiPolygon' && Array.isArray(geom.coordinates)) {
+          geom.coordinates.forEach((poly, idx) => {
+            if (Array.isArray(poly) && poly[0]) {
+              const pts = poly[0].map(parsePoint).filter(p => p !== null);
+              if (pts.length >= 3) {
+                items.push({ id: `${id}-${idx}`, type: 'polygon', label, color, points: pts });
+              }
+            }
+          });
+        } else if (geom.type === 'Point' && Array.isArray(geom.coordinates)) {
+          const pt = parsePoint(geom.coordinates);
+          if (pt) {
+            items.push({ id, type: 'point', label, color, points: [pt] });
+          }
+        }
+        return;
       }
 
-      items.push({
-        id: id,
-        type: mappedType,
-        label: label,
-        color: color,
-        notes: el.user || '',
-        points: points2d
-      });
+      const rawType = (el.type || 'polygon').toLowerCase();
+      const id = el.id || el._id || `ann-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      const label = (el.label && el.label.value) || el.name || parentName || 'Annotation';
+      const color = parseColor(el);
+
+      let points2d = [];
+
+      if (rawType === 'rectangle' || rawType === 'bbox' || rawType === 'box') {
+        if (el.center && typeof el.width === 'number' && typeof el.height === 'number') {
+          const cx = Number(el.center[0]);
+          const cy = Number(el.center[1]);
+          const w = el.width;
+          const h = el.height;
+          if (!isNaN(cx) && !isNaN(cy)) {
+            points2d = [[cx - w / 2, cy - h / 2], [cx + w / 2, cy + h / 2]];
+          }
+        } else if (el.corner && typeof el.width === 'number' && typeof el.height === 'number') {
+          const x = Number(el.corner[0]);
+          const y = Number(el.corner[1]);
+          if (!isNaN(x) && !isNaN(y)) {
+            points2d = [[x, y], [x + el.width, y + el.height]];
+          }
+        } else if (Array.isArray(el.points) && el.points.length >= 2) {
+          const pts = el.points.map(parsePoint).filter(p => p !== null);
+          if (pts.length >= 2) {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            pts.forEach(p => {
+              minX = Math.min(minX, p[0]);
+              maxX = Math.max(maxX, p[0]);
+              minY = Math.min(minY, p[1]);
+              maxY = Math.max(maxY, p[1]);
+            });
+            points2d = [[minX, minY], [maxX, maxY]];
+          }
+        }
+
+        if (points2d.length === 2) {
+          items.push({
+            id: id,
+            type: 'rectangle',
+            label: label,
+            color: color,
+            notes: el.user || '',
+            points: points2d
+          });
+        }
+
+      } else if (rawType === 'point' || rawType === 'circle') {
+        if (el.center) {
+          const pt = parsePoint(el.center);
+          if (pt) points2d = [pt];
+        } else if (Array.isArray(el.points) && el.points.length > 0) {
+          const pt = parsePoint(el.points[0]);
+          if (pt) points2d = [pt];
+        }
+
+        if (points2d.length === 1) {
+          items.push({
+            id: id,
+            type: 'point',
+            label: label,
+            color: color,
+            notes: el.user || '',
+            points: points2d
+          });
+        }
+
+      } else { // polyline / polygon
+        if (Array.isArray(el.points) && el.points.length > 0) {
+          points2d = el.points.map(parsePoint).filter(p => p !== null);
+        }
+
+        if (points2d.length >= 3) {
+          items.push({
+            id: id,
+            type: 'polygon',
+            label: label,
+            color: color,
+            notes: el.user || '',
+            points: points2d
+          });
+        }
+      }
     };
 
     // Case 1: Simple internal array [ { id, type, label, color, points }, ... ]
     if (Array.isArray(data)) {
       data.forEach(item => {
+        if (!item) return;
         if (item.annotation && Array.isArray(item.annotation.elements)) {
           // HistomicsUI Girder format array of annotation objects
-          const name = item.annotation.name || 'Annotation';
+          const name = item.annotation.name || item.name || 'Annotation';
           item.annotation.elements.forEach(el => processElement(el, name));
         } else if (item.elements && Array.isArray(item.elements)) {
           const name = item.name || 'Annotation';
           item.elements.forEach(el => processElement(el, name));
-        } else if (item.points && Array.isArray(item.points)) {
-          if (item.type && item.label && item.id) {
-            items.push(item);
-          } else {
-            processElement(item, 'Annotation');
-          }
+        } else if (item.features && Array.isArray(item.features)) {
+          item.features.forEach(f => processElement(f, f.properties?.name || 'Feature'));
+        } else if (item.points && Array.isArray(item.points) && item.type && item.label && item.id) {
+          items.push(item);
+        } else {
+          processElement(item, item.name || 'Annotation');
         }
       });
     } 
-    // Case 2: Object containing 'annotation' -> { name, elements: [...] }
+    // Case 2: GeoJSON FeatureCollection
+    else if (data.type === 'FeatureCollection' && Array.isArray(data.features)) {
+      data.features.forEach(f => processElement(f, f.properties?.name || 'Feature'));
+    }
+    // Case 3: Object containing 'annotation' -> { name, elements: [...] }
     else if (data.annotation && Array.isArray(data.annotation.elements)) {
       const name = data.annotation.name || 'Annotation';
       data.annotation.elements.forEach(el => processElement(el, name));
     }
-    // Case 3: Object containing 'elements' -> [ {...}, ... ]
+    // Case 4: Object containing 'elements' -> [ {...}, ... ]
     else if (data.elements && Array.isArray(data.elements)) {
       const name = data.name || 'Annotation';
       data.elements.forEach(el => processElement(el, name));
     }
-    // Case 4: Object containing 'annotations' -> [ {...}, ... ]
+    // Case 5: Object containing 'annotations' -> [ {...}, ... ]
     else if (data.annotations && Array.isArray(data.annotations)) {
       return this.parseAnyAnnotationFormat(data.annotations);
+    }
+    // Case 6: Single element / feature object
+    else if (typeof data === 'object') {
+      processElement(data, 'Annotation');
     }
 
     return items;
@@ -453,6 +553,14 @@ class AnnotationManager {
 
   importJson(jsonData) {
     try {
+      if (typeof jsonData === 'string') {
+        try {
+          jsonData = JSON.parse(jsonData);
+        } catch (jsonErr) {
+          alert("Lỗi định dạng JSON: File không hợp lệ.");
+          return;
+        }
+      }
       const parsed = this.parseAnyAnnotationFormat(jsonData);
       if (Array.isArray(parsed) && parsed.length > 0) {
         this.saveStateForUndo();
@@ -462,11 +570,11 @@ class AnnotationManager {
         this.onAnnotationListChange(this.annotations);
         this.onSelectionChange(null);
       } else {
-        alert("No valid annotations found in JSON file.");
+        alert("Không tìm thấy dữ liệu chú thích (annotations) hợp lệ trong file JSON.");
       }
     } catch (e) {
       console.error("Failed to import annotation JSON:", e);
-      alert("Error parsing annotation file format.");
+      alert("Lỗi khi đọc file chú thích: " + (e.message || "Định dạng không hợp lệ"));
     }
   }
 
