@@ -24,9 +24,15 @@ class SidebarController {
     this.propLabel = document.getElementById('propLabel');
     this.propColor = document.getElementById('propColor');
     this.colorHexText = document.getElementById('colorHexText');
+    this.propFillOpacity = document.getElementById('propFillOpacity');
+    this.propFillOpacityVal = document.getElementById('propFillOpacityVal');
     this.propNotes = document.getElementById('propNotes');
     this.propArea = document.getElementById('propArea');
     this.propPerimeter = document.getElementById('propPerimeter');
+
+    this.globalOpacitySlider = document.getElementById('globalOpacitySlider');
+    this.globalOpacityVal = document.getElementById('globalOpacityVal');
+    this.btnAutoColor = document.getElementById('btnAutoColor');
     // Zoom Elements
     this.zoomSlider = document.getElementById('zoomSlider');
     this.zoomInput = document.getElementById('zoomInput');
@@ -108,6 +114,20 @@ class SidebarController {
       });
     }
 
+    if (this.globalOpacitySlider) {
+      this.globalOpacitySlider.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (this.globalOpacityVal) this.globalOpacityVal.textContent = `${Math.round(val * 100)}%`;
+        this.annotationManager.setGlobalFillOpacity(val);
+      });
+    }
+
+    if (this.btnAutoColor) {
+      this.btnAutoColor.addEventListener('click', () => {
+        this.annotationManager.autoColorByLabel();
+      });
+    }
+
     if (this.annotationSearch) {
       this.annotationSearch.addEventListener('input', () => {
         this.renderAnnotationList(this.annotationManager.annotations);
@@ -124,6 +144,14 @@ class SidebarController {
       this.propColor.addEventListener('input', () => {
         this.colorHexText.textContent = this.propColor.value;
         this.annotationManager.updateSelectedAnnotation({ color: this.propColor.value });
+      });
+    }
+
+    if (this.propFillOpacity) {
+      this.propFillOpacity.addEventListener('input', () => {
+        const val = parseFloat(this.propFillOpacity.value);
+        if (this.propFillOpacityVal) this.propFillOpacityVal.textContent = `${Math.round(val * 100)}%`;
+        this.annotationManager.updateSelectedAnnotation({ fillOpacity: val });
       });
     }
 
@@ -271,6 +299,11 @@ class SidebarController {
     if (this.propColor) {
       this.propColor.value = ann.color || '#ef4444';
       if (this.colorHexText) this.colorHexText.textContent = ann.color || '#ef4444';
+    }
+    if (this.propFillOpacity) {
+      const opacity = typeof ann.fillOpacity === 'number' ? ann.fillOpacity : this.annotationManager.globalFillOpacity;
+      this.propFillOpacity.value = opacity;
+      if (this.propFillOpacityVal) this.propFillOpacityVal.textContent = `${Math.round(opacity * 100)}%`;
     }
     if (this.propNotes) this.propNotes.value = ann.notes || '';
 

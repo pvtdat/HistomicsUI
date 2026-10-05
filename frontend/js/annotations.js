@@ -11,6 +11,7 @@ class AnnotationManager {
     this.activeTool = 'select';
     this.currentDrawing = null; // Transient state during drawing
     
+    this.globalFillOpacity = 0.25;
     this.undoStack = [];
     this.redoStack = [];
 
@@ -241,6 +242,39 @@ class AnnotationManager {
     }
     this.render();
     this.onAnnotationListChange(this.annotations);
+  }
+
+  setGlobalFillOpacity(val) {
+    const num = parseFloat(val);
+    if (!isNaN(num)) {
+      this.globalFillOpacity = Math.max(0, Math.min(1, num));
+      this.render();
+    }
+  }
+
+  autoColorByLabel() {
+    const palette = {
+      'tumor': '#ef4444',
+      'stroma': '#10b981',
+      'necrosis': '#a855f7',
+      'lymphocyte': '#3b82f6',
+      'blood vessel': '#f97316',
+      'roi': '#ec4899',
+      'other': '#6b7280'
+    };
+    this.saveStateForUndo();
+    this.annotations.forEach(ann => {
+      const key = (ann.label || 'Other').toLowerCase();
+      if (palette[key]) {
+        ann.color = palette[key];
+      }
+    });
+    this.render();
+    this.onAnnotationListChange(this.annotations);
+    if (this.selectedId) {
+      const selected = this.annotations.find(a => a.id === this.selectedId);
+      this.onSelectionChange(selected);
+    }
   }
 
   saveStateForUndo() {
@@ -587,6 +621,8 @@ class AnnotationManager {
       const isSelected = ann.id === this.selectedId;
       const strokeColor = ann.color || '#ef4444';
       const strokeWidth = isSelected ? 3 : 2;
+      const baseOpacity = typeof ann.fillOpacity === 'number' ? ann.fillOpacity : this.globalFillOpacity;
+      const fillOpacity = isSelected ? Math.min(1.0, baseOpacity + 0.2) : baseOpacity;
 
       if (ann.type === 'rectangle') {
         const sp1 = this.viewerManager.imageToScreen({ x: ann.points[0][0], y: ann.points[0][1] });
@@ -605,7 +641,7 @@ class AnnotationManager {
         rect.setAttribute('stroke', strokeColor);
         rect.setAttribute('stroke-width', strokeWidth);
         rect.setAttribute('fill', strokeColor);
-        rect.setAttribute('fill-opacity', isSelected ? '0.35' : '0.2');
+        rect.setAttribute('fill-opacity', fillOpacity);
         if (isSelected) rect.classList.add('selected-annotation');
 
         rect.onclick = (e) => {
@@ -625,7 +661,7 @@ class AnnotationManager {
         poly.setAttribute('stroke', strokeColor);
         poly.setAttribute('stroke-width', strokeWidth);
         poly.setAttribute('fill', strokeColor);
-        poly.setAttribute('fill-opacity', isSelected ? '0.35' : '0.2');
+        poly.setAttribute('fill-opacity', fillOpacity);
         if (isSelected) poly.classList.add('selected-annotation');
 
         poly.onclick = (e) => {
@@ -643,7 +679,7 @@ class AnnotationManager {
         circle.setAttribute('stroke', strokeColor);
         circle.setAttribute('stroke-width', strokeWidth);
         circle.setAttribute('fill', strokeColor);
-        circle.setAttribute('fill-opacity', '0.8');
+        circle.setAttribute('fill-opacity', '0.85');
         if (isSelected) circle.classList.add('selected-annotation');
 
         circle.onclick = (e) => {

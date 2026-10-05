@@ -290,6 +290,13 @@
           <div class="panel-content">
             <div class="annotation-filter">
               <input type="text" id="annotationSearch" placeholder="Filter annotations..." class="search-input">
+              <button type="button" id="btnAutoColor" class="btn-auto-color" title="Tự động phân màu theo loại chú thích (Tumor, Stroma, v.v.)">
+                Palette Auto-Color
+              </button>
+            </div>
+            <div class="global-opacity-row">
+              <label for="globalOpacitySlider">Opacity: <span id="globalOpacityVal">25%</span></label>
+              <input type="range" id="globalOpacitySlider" min="0" max="1" step="0.05" value="0.25" class="opacity-range">
             </div>
             <ul id="annotationList" class="annotation-list">
               <!-- Rendered via JS -->
@@ -319,6 +326,7 @@
                   <option value="Necrosis">Necrosis</option>
                   <option value="Lymphocyte">Lymphocyte</option>
                   <option value="Blood Vessel">Blood Vessel</option>
+                  <option value="ROI">ROI</option>
                   <option value="Other">Other</option>
                 </select>
               </div>
@@ -329,6 +337,11 @@
                   <input type="color" id="propColor" value="#ff3b30">
                   <span id="colorHexText" class="color-hex">#ff3b30</span>
                 </div>
+              </div>
+
+              <div class="form-group">
+                <label for="propFillOpacity">Fill Opacity (<span id="propFillOpacityVal">25%</span>)</label>
+                <input type="range" id="propFillOpacity" min="0" max="1" step="0.05" value="0.25" class="opacity-range">
               </div>
 
               <div class="form-group">
