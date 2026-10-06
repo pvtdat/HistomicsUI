@@ -1,435 +1,788 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pathology Viewer - Lightweight Histomics UI</title>
-  <meta name="description" content="Lightweight Pathology & Whole Slide Image (WSI) Viewer with vector annotation capabilities.">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  
-  <!-- OpenSeadragon CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/openseadragon.min.js"></script>
-  
-  <link rel="stylesheet" href="css/base.css">
-  <link rel="stylesheet" href="css/layout.css">
-  <link rel="stylesheet" href="css/viewer.css">
-  <link rel="stylesheet" href="css/toolbar.css">
-  <link rel="stylesheet" href="css/sidebar.css">
-</head>
-<body class="dark-theme">
-  <div id="app" class="app-container">
-    <!-- Header -->
-    <header class="app-header">
-      <div class="brand">
-        <div class="logo-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="9"/>
-            <path d="M12 3v18M3 12h18"/>
-            <circle cx="12" cy="12" r="3" fill="currentColor"/>
-          </svg>
-        </div>
-        <span class="brand-title">HistomicsUI <span class="badge">Lite</span></span>
-      </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pathology Viewer - Lightweight Histomics UI</title>
+    <meta
+      name="description"
+      content="Lightweight Pathology & Whole Slide Image (WSI) Viewer with vector annotation capabilities."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
 
-      <div class="slide-selector-container">
-        <label for="slideSelect" class="sr-only">Select Slide</label>
-        <select id="slideSelect" class="slide-select">
-          <option value="tcga-a2-a0st">TCGA-A2-A0ST (SVS Slide - HistomicsData)</option>
-          <option value="tcga-a1-a0sk">TCGA-A1-A0SK (HistomicsData Nuclei)</option>
-          <option value="demo-breast">Breast Tissue Microarray (Demo)</option>
-          <option value="demo-kidney">Kidney Glomeruli (Demo)</option>
-          <option value="upload-local">Local Image / SVS File...</option>
-        </select>
-        <input type="file" id="localFileInput" accept="image/*,.svs,.tif,.tiff,.dzi,.xml" style="display: none;">
-      </div>
+    <!-- OpenSeadragon CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/openseadragon.min.js"></script>
 
-      <div class="header-actions">
-        <button id="btnImportJson" class="btn btn-secondary" title="Import JSON Annotations">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          Import
-        </button>
-        <button id="btnExportJson" class="btn btn-secondary" title="Export Annotations to JSON">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="17 8 12 3 7 8"/>
-            <line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
-          Export
-        </button>
-        <button id="btnResetView" class="btn btn-icon" title="Reset Viewport">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-            <path d="M3 3v5h5"/>
-          </svg>
-        </button>
-        <button id="btnFullscreen" class="btn btn-icon" title="Toggle Fullscreen">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-          </svg>
-        </button>
-      </div>
-    </header>
-
-    <!-- Main Workspace -->
-    <main class="workspace">
-      <!-- Left Toolbar -->
-      <aside class="toolbar" id="leftToolbar" aria-label="Annotation Tools">
-        <button id="btnToggleToolbar" class="toolbar-toggle-btn" title="Toggle Toolbar Compact Mode">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="3" y1="12" x2="21" y2="12"/>
-            <line x1="3" y1="6" x2="21" y2="6"/>
-            <line x1="3" y1="18" x2="21" y2="18"/>
-          </svg>
-        </button>
-
-        <div class="tool-group">
-          <button class="tool-btn active" data-tool="select" title="Select / Edit (S)">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
-              <path d="M13 13l6 6"/>
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/layout.css" />
+    <link rel="stylesheet" href="css/viewer.css" />
+    <link rel="stylesheet" href="css/toolbar.css" />
+    <link rel="stylesheet" href="css/sidebar.css" />
+  </head>
+  <body class="dark-theme">
+    <div id="app" class="app-container">
+      <!-- Header -->
+      <header class="app-header">
+        <div class="brand">
+          <div class="logo-icon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 3v18M3 12h18" />
+              <circle cx="12" cy="12" r="3" fill="currentColor" />
             </svg>
-            <span class="tool-label">Select</span>
-          </button>
-          <button class="tool-btn" data-tool="pan" title="Pan Navigation (H)">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/>
-              <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v6"/>
-              <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
-              <path d="M18 8a2 2 0 0 1 2 2v4a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
-            </svg>
-            <span class="tool-label">Pan</span>
-          </button>
-        </div>
-
-        <div class="tool-divider"></div>
-
-        <div class="tool-group">
-          <button class="tool-btn" data-tool="rectangle" title="Rectangle Tool (R)">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            </svg>
-            <span class="tool-label">Rectangle</span>
-          </button>
-          <button class="tool-btn" data-tool="polygon" title="Polygon Tool (P)">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
-            <span class="tool-label">Polygon</span>
-          </button>
-          <button class="tool-btn" data-tool="point" title="Point / Marker (O)">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="8"/>
-              <circle cx="12" cy="12" r="2" fill="currentColor"/>
-            </svg>
-            <span class="tool-label">Point</span>
-          </button>
-        </div>
-
-        <div class="tool-divider"></div>
-
-        <div class="tool-group">
-          <button id="btnUndo" class="tool-btn" title="Undo (Ctrl+Z)" disabled>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 7v6h6"/>
-              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
-            </svg>
-            <span class="tool-label">Undo</span>
-          </button>
-          <button id="btnRedo" class="tool-btn" title="Redo (Ctrl+Y)" disabled>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 7v6h-6"/>
-              <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/>
-            </svg>
-            <span class="tool-label">Redo</span>
-          </button>
-          <button id="btnDeleteSelected" class="tool-btn btn-danger-icon" title="Delete Selected (Del)" disabled>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              <line x1="10" y1="11" x2="10" y2="17"/>
-              <line x1="14" y1="11" x2="14" y2="17"/>
-            </svg>
-            <span class="tool-label">Delete</span>
-          </button>
-        </div>
-      </aside>
-
-      <!-- Center WSI Viewer -->
-      <section class="viewer-container">
-        <div id="openseadragon-viewer" class="openseadragon-stage"></div>
-        <svg id="annotation-svg-layer" class="svg-annotation-overlay"></svg>
-        <div id="drawing-instructions" class="drawing-hint hidden">
-          Click to add points, double-click or press Enter to close polygon.
-        </div>
-        <!-- Physical Scale Bar Overlay (e.g. 200 µm) -->
-        <div id="scalebar-widget" class="scalebar-widget">
-          <div id="scalebar-line" class="scalebar-line"></div>
-          <span id="scalebar-text" class="scalebar-text">200 µm</span>
-        </div>
-        <!-- Coordinates Indicator Pill -->
-        <div id="coords-widget" class="coords-widget">
-          <span>📍</span>
-          <span id="coords-pill-text">0, 0</span>
-        </div>
-      </section>
-
-      <!-- Right Sidebar -->
-      <aside class="sidebar" id="rightSidebar" aria-label="Slide & Annotation Details">
-        <div id="sidebarTopBar" class="sidebar-top-bar" title="Toggle Sidebar Overlay">
-          <span>Panels</span>
-          <svg id="sidebarToggleIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="18 15 12 9 6 15"/>
-          </svg>
-        </div>
-        <!-- Overview / Minimap Panel -->
-        <details class="sidebar-panel" open>
-          <summary class="panel-header">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-              <circle cx="8.5" cy="8.5" r="1.5"/>
-              <polyline points="21 15 16 10 5 21"/>
-            </svg>
-            <span>Overview</span>
-          </summary>
-          <div class="panel-content overview-panel-content">
-            <div id="overview-container" class="overview-box"></div>
           </div>
-        </details>
+          <span class="brand-title"
+            >HistomicsUI <span class="badge">Lite</span></span
+          >
+        </div>
 
-        <!-- Zoom Panel -->
-        <details class="sidebar-panel" open>
-          <summary class="panel-header">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              <line x1="11" y1="8" x2="11" y2="14"/>
-              <line x1="8" y1="11" x2="14" y2="11"/>
+        <div class="slide-selector-container">
+          <label for="slideSelect" class="sr-only">Select Slide</label>
+          <select id="slideSelect" class="slide-select">
+            <option value="tcga-a2-a0st">
+              TCGA-A2-A0ST (Interactive Vector Annotation Mode)
+            </option>
+            <option value="tcga-a2-a0st-svs-overlay">
+              TCGA-A2-A0ST (SVS Python HistomicsTK Rendered Overlay)
+            </option>
+            <option value="upload-local">Local Image / SVS File...</option>
+          </select>
+          <input
+            type="file"
+            id="localFileInput"
+            accept="image/*,.svs,.tif,.tiff,.dzi,.xml"
+            style="display: none"
+          />
+        </div>
+
+        <div class="header-actions">
+          <button
+            id="btnImportJson"
+            class="btn btn-secondary"
+            title="Import JSON Annotations"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            <span>Zoom</span>
-          </summary>
-          <div class="panel-content zoom-panel-content">
-            <div class="zoom-controls-top">
-              <input type="range" id="zoomSlider" min="0.8" max="80" step="0.1" value="1.0" class="zoom-slider">
-              <div class="zoom-input-wrapper">
-                <input type="number" id="zoomInput" min="0.8" max="80" step="0.1" value="1.0" class="zoom-input">
-                <div class="zoom-step-btns">
-                  <button id="btnZoomIn" class="zoom-step-btn" title="Zoom In">+</button>
-                  <button id="btnZoomOut" class="zoom-step-btn" title="Zoom Out">−</button>
+            Import
+          </button>
+          <button
+            id="btnExportJson"
+            class="btn btn-secondary"
+            title="Export Annotations to JSON"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            Export
+          </button>
+          <button id="btnResetView" class="btn btn-icon" title="Reset Viewport">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
+          </button>
+          <button
+            id="btnFullscreen"
+            class="btn btn-icon"
+            title="Toggle Fullscreen"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
+              />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Workspace -->
+      <main class="workspace">
+        <!-- Left Toolbar -->
+        <aside class="toolbar" id="leftToolbar" aria-label="Annotation Tools">
+          <button
+            id="btnToggleToolbar"
+            class="toolbar-toggle-btn"
+            title="Toggle Toolbar Compact Mode"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+
+          <div class="tool-group">
+            <button
+              class="tool-btn active"
+              data-tool="select"
+              title="Select / Edit (S)"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+                <path d="M13 13l6 6" />
+              </svg>
+              <span class="tool-label">Select</span>
+            </button>
+            <button class="tool-btn" data-tool="pan" title="Pan Navigation (H)">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0" />
+                <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v6" />
+                <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8" />
+                <path
+                  d="M18 8a2 2 0 0 1 2 2v4a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"
+                />
+              </svg>
+              <span class="tool-label">Pan</span>
+            </button>
+          </div>
+
+          <div class="tool-divider"></div>
+
+          <div class="tool-group">
+            <button
+              class="tool-btn"
+              data-tool="rectangle"
+              title="Rectangle Tool (R)"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              </svg>
+              <span class="tool-label">Rectangle</span>
+            </button>
+            <button
+              class="tool-btn"
+              data-tool="polygon"
+              title="Polygon Tool (P)"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                />
+              </svg>
+              <span class="tool-label">Polygon</span>
+            </button>
+            <button
+              class="tool-btn"
+              data-tool="point"
+              title="Point / Marker (O)"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="8" />
+                <circle cx="12" cy="12" r="2" fill="currentColor" />
+              </svg>
+              <span class="tool-label">Point</span>
+            </button>
+          </div>
+
+          <div class="tool-divider"></div>
+
+          <div class="tool-group">
+            <button
+              id="btnUndo"
+              class="tool-btn"
+              title="Undo (Ctrl+Z)"
+              disabled
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M3 7v6h6" />
+                <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
+              </svg>
+              <span class="tool-label">Undo</span>
+            </button>
+            <button
+              id="btnRedo"
+              class="tool-btn"
+              title="Redo (Ctrl+Y)"
+              disabled
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 7v6h-6" />
+                <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7" />
+              </svg>
+              <span class="tool-label">Redo</span>
+            </button>
+            <button
+              id="btnDeleteSelected"
+              class="tool-btn btn-danger-icon"
+              title="Delete Selected (Del)"
+              disabled
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="3 6 5 6 21 6" />
+                <path
+                  d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                />
+                <line x1="10" y1="11" x2="10" y2="17" />
+                <line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
+              <span class="tool-label">Delete</span>
+            </button>
+          </div>
+        </aside>
+
+        <!-- Center WSI Viewer -->
+        <section class="viewer-container">
+          <div id="openseadragon-viewer" class="openseadragon-stage"></div>
+          <svg id="annotation-svg-layer" class="svg-annotation-overlay"></svg>
+          <div id="drawing-instructions" class="drawing-hint hidden">
+            Click to add points, double-click or press Enter to close polygon.
+          </div>
+          <!-- Physical Scale Bar Overlay (e.g. 200 µm) -->
+          <div id="scalebar-widget" class="scalebar-widget">
+            <div id="scalebar-line" class="scalebar-line"></div>
+            <span id="scalebar-text" class="scalebar-text">200 µm</span>
+          </div>
+          <!-- Coordinates Indicator Pill -->
+          <div id="coords-widget" class="coords-widget">
+            <span>📍</span>
+            <span id="coords-pill-text">0, 0</span>
+          </div>
+        </section>
+
+        <!-- Right Sidebar -->
+        <aside
+          class="sidebar"
+          id="rightSidebar"
+          aria-label="Slide & Annotation Details"
+        >
+          <div
+            id="sidebarTopBar"
+            class="sidebar-top-bar"
+            title="Toggle Sidebar Overlay"
+          >
+            <span>Panels</span>
+            <svg
+              id="sidebarToggleIcon"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polyline points="18 15 12 9 6 15" />
+            </svg>
+          </div>
+          <!-- Overview / Minimap Panel -->
+          <details class="sidebar-panel" open>
+            <summary class="panel-header">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+              <span>Overview</span>
+            </summary>
+            <div class="panel-content overview-panel-content">
+              <div id="overview-container" class="overview-box"></div>
+            </div>
+          </details>
+
+          <!-- Zoom Panel -->
+          <details class="sidebar-panel" open>
+            <summary class="panel-header">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                <line x1="11" y1="8" x2="11" y2="14" />
+                <line x1="8" y1="11" x2="14" y2="11" />
+              </svg>
+              <span>Zoom</span>
+            </summary>
+            <div class="panel-content zoom-panel-content">
+              <div class="zoom-controls-top">
+                <input
+                  type="range"
+                  id="zoomSlider"
+                  min="0.8"
+                  max="80"
+                  step="0.1"
+                  value="1.0"
+                  class="zoom-slider"
+                />
+                <div class="zoom-input-wrapper">
+                  <input
+                    type="number"
+                    id="zoomInput"
+                    min="0.8"
+                    max="80"
+                    step="0.1"
+                    value="1.0"
+                    class="zoom-input"
+                  />
+                  <div class="zoom-step-btns">
+                    <button
+                      id="btnZoomIn"
+                      class="zoom-step-btn"
+                      title="Zoom In"
+                    >
+                      +
+                    </button>
+                    <button
+                      id="btnZoomOut"
+                      class="zoom-step-btn"
+                      title="Zoom Out"
+                    >
+                      −
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="zoom-presets-bar">
-              <button class="btn-zoom-preset" data-zoom="fit">Fit</button>
-              <button class="btn-zoom-preset" data-zoom="2.5">2.5</button>
-              <button class="btn-zoom-preset" data-zoom="5">5</button>
-              <button class="btn-zoom-preset" data-zoom="10">10</button>
-              <button class="btn-zoom-preset" data-zoom="20">20</button>
-              <button class="btn-zoom-preset" data-zoom="40">40</button>
-              <button class="btn-zoom-preset" data-zoom="80">80</button>
-            </div>
-            <div class="zoom-download-row">
-              <button id="btnDownloadView" class="btn-zoom-action" title="Download current view snapshot">Download View</button>
-              <button id="btnDownloadArea" class="btn-zoom-action" title="Download selected region">Download Area</button>
-            </div>
-          </div>
-        </details>
-
-        <!-- Slide Information Panel -->
-        <details class="sidebar-panel" open>
-          <summary class="panel-header">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-              <circle cx="8.5" cy="8.5" r="1.5"/>
-              <polyline points="21 15 16 10 5 21"/>
-            </svg>
-            <span>Slide Information</span>
-          </summary>
-          <div class="panel-content">
-            <table class="meta-table">
-              <tr>
-                <td>Name</td>
-                <td id="metaSlideName" class="meta-value">sample_breast_001.svs</td>
-              </tr>
-              <tr>
-                <td>Dimensions</td>
-                <td id="metaSlideDimensions" class="meta-value">40,960 × 30,720 px</td>
-              </tr>
-              <tr>
-                <td>Magnification</td>
-                <td id="metaSlideMag" class="meta-value">40x</td>
-              </tr>
-              <tr>
-                <td>MPP (microns/px)</td>
-                <td id="metaSlideMPP" class="meta-value">0.25 μm</td>
-              </tr>
-              <tr>
-                <td>File Size</td>
-                <td id="metaSlideSize" class="meta-value">1.24 GB</td>
-              </tr>
-            </table>
-          </div>
-        </details>
-
-        <!-- Annotation List Panel -->
-        <details class="sidebar-panel" open>
-          <summary class="panel-header">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <polyline points="10 9 9 9 8 9"/>
-            </svg>
-            <span>Annotations</span>
-            <span id="annotationCountBadge" class="count-badge">0</span>
-          </summary>
-          <div class="panel-content">
-            <div class="ann-toolbar-bar">
-              <button type="button" id="btnShowAllAnn" class="ann-tool-btn" title="Show all annotations (Bật hiện toàn bộ)">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              </button>
-              <button type="button" id="btnHideAllAnn" class="ann-tool-btn" title="Hide all annotations (Tắt mờ toàn bộ)">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                  <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-              </button>
-              <div class="slider-wrapper" title="Fill Opacity (Biên độ độ đục tô màu)">
-                <input type="range" id="globalOpacitySlider" min="0" max="1" step="0.05" value="0.25" class="mini-range">
+              <div class="zoom-presets-bar">
+                <button class="btn-zoom-preset" data-zoom="fit">Fit</button>
+                <button class="btn-zoom-preset" data-zoom="2.5">2.5</button>
+                <button class="btn-zoom-preset" data-zoom="5">5</button>
+                <button class="btn-zoom-preset" data-zoom="10">10</button>
+                <button class="btn-zoom-preset" data-zoom="20">20</button>
+                <button class="btn-zoom-preset" data-zoom="40">40</button>
+                <button class="btn-zoom-preset" data-zoom="80">80</button>
               </div>
-              <div class="slider-wrapper" title="Stroke Opacity (Biên độ viền nét vẽ)">
-                <input type="range" id="globalStrokeOpacitySlider" min="0" max="1" step="0.05" value="0.85" class="mini-range">
-              </div>
-              <button type="button" id="btnAutoColor" class="ann-tool-btn" title="Palette Auto-Color (Tự động phân màu theo nhãn)">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <path d="M12 2a7 7 0 1 0 7 7"/>
-                </svg>
-              </button>
-            </div>
-            <div class="annotation-filter">
-              <input type="text" id="annotationSearch" placeholder="Filter annotations..." class="search-input">
-            </div>
-            <ul id="annotationList" class="annotation-list">
-              <!-- Rendered via JS -->
-            </ul>
-          </div>
-        </details>
-
-        <!-- Selected Annotation Properties -->
-        <details class="sidebar-panel" id="propertiesPanel" open>
-          <summary class="panel-header">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-            </svg>
-            <span>Properties</span>
-          </summary>
-          <div class="panel-content">
-            <div id="noSelectionMsg" class="empty-state">
-              Select an annotation on the viewer or list to edit its properties.
-            </div>
-            <form id="propertiesForm" class="properties-form hidden">
-              <div class="form-group">
-                <label for="propLabel">Label</label>
-                <select id="propLabel" class="form-control">
-                  <option value="Tumor">Tumor</option>
-                  <option value="Stroma">Stroma</option>
-                  <option value="Necrosis">Necrosis</option>
-                  <option value="Lymphocyte">Lymphocyte</option>
-                  <option value="Blood Vessel">Blood Vessel</option>
-                  <option value="ROI">ROI</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="propColor">Color</label>
-                <div class="color-picker-row">
-                  <input type="color" id="propColor" value="#ff3b30">
-                  <span id="colorHexText" class="color-hex">#ff3b30</span>
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label for="propFillOpacity">Fill Opacity (<span id="propFillOpacityVal">25%</span>)</label>
-                <input type="range" id="propFillOpacity" min="0" max="1" step="0.05" value="0.25" class="opacity-range">
-              </div>
-
-              <div class="form-group">
-                <label for="propNotes">Notes</label>
-                <textarea id="propNotes" class="form-control" rows="3" placeholder="Add clinical/research notes..."></textarea>
-              </div>
-
-              <div class="form-group">
-                <label>Calculated Metrics</label>
-                <div class="metric-badge">
-                  <span>Area:</span>
-                  <strong id="propArea">--</strong>
-                </div>
-                <div class="metric-badge">
-                  <span>Perimeter:</span>
-                  <strong id="propPerimeter">--</strong>
-                </div>
-              </div>
-
-              <div class="form-actions">
-                <button type="button" id="btnDeleteCurrent" class="btn btn-danger full-width">
-                  Delete Annotation
+              <div class="zoom-download-row">
+                <button
+                  id="btnDownloadView"
+                  class="btn-zoom-action"
+                  title="Download current view snapshot"
+                >
+                  Download View
+                </button>
+                <button
+                  id="btnDownloadArea"
+                  class="btn-zoom-action"
+                  title="Download selected region"
+                >
+                  Download Area
                 </button>
               </div>
-            </form>
-          </div>
-        </details>
-      </aside>
-    </main>
+            </div>
+          </details>
 
-    <!-- Bottom Status Bar -->
-    <footer class="status-bar">
-      <div class="status-item">
-        <span class="status-label">X:</span>
-        <span id="statusX" class="status-val">0</span>
-        <span class="status-label">Y:</span>
-        <span id="statusY" class="status-val">0</span>
-      </div>
-      <div class="status-divider"></div>
-      <div class="status-item">
-        <span class="status-label">Zoom:</span>
-        <span id="statusZoom" class="status-val">1.0x</span>
-      </div>
-      <div class="status-divider"></div>
-      <div class="status-item">
-        <span class="status-label">MPP:</span>
-        <span id="statusMPP" class="status-val">0.25 µm</span>
-      </div>
-      <div class="status-divider"></div>
-      <div class="status-item">
-        <span class="status-label">Slide Size:</span>
-        <span id="statusSlideSize" class="status-val">40960 × 30720</span>
-      </div>
-      <div class="status-spacer"></div>
-      <div class="status-item">
-        <span id="backendStatus" class="backend-indicator online">
-          <span class="dot"></span> Pure Frontend Mode
-        </span>
-      </div>
-    </footer>
-  </div>
+          <!-- Slide Information Panel -->
+          <details class="sidebar-panel" open>
+            <summary class="panel-header">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+              <span>Slide Information</span>
+            </summary>
+            <div class="panel-content">
+              <table class="meta-table">
+                <tr>
+                  <td>Name</td>
+                  <td id="metaSlideName" class="meta-value">
+                    sample_breast_001.svs
+                  </td>
+                </tr>
+                <tr>
+                  <td>Dimensions</td>
+                  <td id="metaSlideDimensions" class="meta-value">
+                    40,960 × 30,720 px
+                  </td>
+                </tr>
+                <tr>
+                  <td>Magnification</td>
+                  <td id="metaSlideMag" class="meta-value">40x</td>
+                </tr>
+                <tr>
+                  <td>MPP (microns/px)</td>
+                  <td id="metaSlideMPP" class="meta-value">0.25 μm</td>
+                </tr>
+                <tr>
+                  <td>File Size</td>
+                  <td id="metaSlideSize" class="meta-value">1.24 GB</td>
+                </tr>
+              </table>
+            </div>
+          </details>
 
-  <script src="js/api.js"></script>
-  <script src="js/viewer.js"></script>
-  <script src="js/annotations.js"></script>
-  <script src="js/toolbar.js"></script>
-  <script src="js/sidebar.js"></script>
-  <script src="js/app.js"></script>
-</body>
+          <!-- Annotation List Panel -->
+          <details class="sidebar-panel" open>
+            <summary class="panel-header">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+              <span>Annotations</span>
+              <span id="annotationCountBadge" class="count-badge">0</span>
+            </summary>
+            <div class="panel-content">
+              <div class="ann-toolbar-bar">
+                <button
+                  type="button"
+                  id="btnShowAllAnn"
+                  class="ann-tool-btn"
+                  title="Show all annotations (Bật hiện toàn bộ)"
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  id="btnHideAllAnn"
+                  class="ann-tool-btn"
+                  title="Hide all annotations (Tắt mờ toàn bộ)"
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+                    />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                </button>
+                <div
+                  class="slider-wrapper"
+                  title="Fill Opacity (Biên độ độ đục tô màu)"
+                >
+                  <input
+                    type="range"
+                    id="globalOpacitySlider"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value="0.25"
+                    class="mini-range"
+                  />
+                </div>
+                <div
+                  class="slider-wrapper"
+                  title="Stroke Opacity (Biên độ viền nét vẽ)"
+                >
+                  <input
+                    type="range"
+                    id="globalStrokeOpacitySlider"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value="0.85"
+                    class="mini-range"
+                  />
+                </div>
+                <button
+                  type="button"
+                  id="btnAutoColor"
+                  class="ann-tool-btn"
+                  title="Palette Auto-Color (Tự động phân màu theo nhãn)"
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 2a7 7 0 1 0 7 7" />
+                  </svg>
+                </button>
+              </div>
+              <div class="annotation-filter">
+                <input
+                  type="text"
+                  id="annotationSearch"
+                  placeholder="Filter annotations..."
+                  class="search-input"
+                />
+              </div>
+              <ul id="annotationList" class="annotation-list">
+                <!-- Rendered via JS -->
+              </ul>
+            </div>
+          </details>
+
+          <!-- Selected Annotation Properties -->
+          <details class="sidebar-panel" id="propertiesPanel" open>
+            <summary class="panel-header">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+                />
+              </svg>
+              <span>Properties</span>
+            </summary>
+            <div class="panel-content">
+              <div id="noSelectionMsg" class="empty-state">
+                Select an annotation on the viewer or list to edit its
+                properties.
+              </div>
+              <form id="propertiesForm" class="properties-form hidden">
+                <div class="form-group">
+                  <label for="propLabel">Label</label>
+                  <select id="propLabel" class="form-control">
+                    <option value="Tumor">Tumor</option>
+                    <option value="Stroma">Stroma</option>
+                    <option value="Necrosis">Necrosis</option>
+                    <option value="Lymphocyte">Lymphocyte</option>
+                    <option value="Blood Vessel">Blood Vessel</option>
+                    <option value="ROI">ROI</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label for="propColor">Color</label>
+                  <div class="color-picker-row">
+                    <input type="color" id="propColor" value="#ff3b30" />
+                    <span id="colorHexText" class="color-hex">#ff3b30</span>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="propFillOpacity"
+                    >Fill Opacity (<span id="propFillOpacityVal">25%</span
+                    >)</label
+                  >
+                  <input
+                    type="range"
+                    id="propFillOpacity"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value="0.25"
+                    class="opacity-range"
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label for="propNotes">Notes</label>
+                  <textarea
+                    id="propNotes"
+                    class="form-control"
+                    rows="3"
+                    placeholder="Add clinical/research notes..."
+                  ></textarea>
+                </div>
+
+                <div class="form-group">
+                  <label>Calculated Metrics</label>
+                  <div class="metric-badge">
+                    <span>Area:</span>
+                    <strong id="propArea">--</strong>
+                  </div>
+                  <div class="metric-badge">
+                    <span>Perimeter:</span>
+                    <strong id="propPerimeter">--</strong>
+                  </div>
+                </div>
+
+                <div class="form-actions">
+                  <button
+                    type="button"
+                    id="btnDeleteCurrent"
+                    class="btn btn-danger full-width"
+                  >
+                    Delete Annotation
+                  </button>
+                </div>
+              </form>
+            </div>
+          </details>
+        </aside>
+      </main>
+
+      <!-- Bottom Status Bar -->
+      <footer class="status-bar">
+        <div class="status-item">
+          <span class="status-label">X:</span>
+          <span id="statusX" class="status-val">0</span>
+          <span class="status-label">Y:</span>
+          <span id="statusY" class="status-val">0</span>
+        </div>
+        <div class="status-divider"></div>
+        <div class="status-item">
+          <span class="status-label">Zoom:</span>
+          <span id="statusZoom" class="status-val">1.0x</span>
+        </div>
+        <div class="status-divider"></div>
+        <div class="status-item">
+          <span class="status-label">MPP:</span>
+          <span id="statusMPP" class="status-val">0.25 µm</span>
+        </div>
+        <div class="status-divider"></div>
+        <div class="status-item">
+          <span class="status-label">Slide Size:</span>
+          <span id="statusSlideSize" class="status-val">40960 × 30720</span>
+        </div>
+        <div class="status-spacer"></div>
+        <div class="status-item">
+          <span id="backendStatus" class="backend-indicator online">
+            <span class="dot"></span> Pure Frontend Mode
+          </span>
+        </div>
+      </footer>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/viewer.js"></script>
+    <script src="js/annotations.js"></script>
+    <script src="js/toolbar.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/app.js"></script>
+  </body>
 </html>

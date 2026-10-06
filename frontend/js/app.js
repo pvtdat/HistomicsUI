@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (statusMPP) statusMPP.textContent = `${meta.mpp || 0.25} μm`;
 
     // 2. Open tile source via frontend viewer
-    const tileSource = meta.imageUrl ? { type: 'image', url: meta.imageUrl } : null;
+    const tileSource = meta.tileSourceUrl ? meta.tileSourceUrl : (meta.imageUrl ? { type: 'image', url: meta.imageUrl } : null);
     viewerManager.loadSlide(meta, tileSource);
 
     // 3. Load annotations
@@ -100,47 +100,118 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   if (localFileInput) {
-    localFileInput.addEventListener('change', (e) => {
+    localFileInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
-      if (file) {
-        const objectUrl = URL.createObjectURL(file);
-        const img = new Image();
-        img.onload = () => {
-          const xminMatch = file.name.match(/xmin(\d+)/i);
-          const yminMatch = file.name.match(/ymin(\d+)/i);
-          const offsetX = xminMatch ? parseInt(xminMatch[1], 10) : 0;
-          const offsetY = yminMatch ? parseInt(yminMatch[1], 10) : 0;
+      if (!file) return;
 
-          const customMeta = {
-            id: `local-${Date.now()}`,
-            name: file.name,
-            dimensions: `${img.naturalWidth.toLocaleString()} × ${img.naturalHeight.toLocaleString()} px`,
-            width: img.naturalWidth,
-            height: img.naturalHeight,
-            magnification: '40x',
-            mpp: 0.25,
-            fileSize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-            imageUrl: objectUrl,
-            offsetX: offsetX,
-            offsetY: offsetY
-          };
-          sidebarController.updateSlideMetadata(customMeta);
-          if (statusSlideSize) statusSlideSize.textContent = `${img.naturalWidth.toLocaleString()} × ${img.naturalHeight.toLocaleString()}`;
-          if (statusMPP) statusMPP.textContent = `${customMeta.mpp} μm`;
+      const ext = file.name.split('.').pop().toLowerCase();
+      const isWsi = ['svs', 'tif', 'tiff', 'ndpi', 'mrxs'].includes(ext);
 
-          viewerManager.loadSlide(customMeta, { type: 'image', url: objectUrl });
-          
-          if (annotationManager.annotations.length > 0) {
-            annotationManager.autoDetectOffset();
-            annotationManager.render();
-            sidebarController.renderAnnotationList(annotationManager.annotations);
-          } else {
-            annotationManager.render();
-            sidebarController.renderAnnotationList([]);
+      if (isWsi) {
+        // Upload WSI file to Tile Server
+        if (backendIndicator) {
+          backendIndicator.className = 'backend-indicator busy';
+          backendIndicator.innerHTML = '<span class="dot"></span> Uploading WSI File...';
+        }
+        
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const res = await fetch('/api/v1/upload-wsi', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            console.log('Upload WSI successful:', data);
+            
+            // Load uploaded slide metadata
+            const metaRes = await fetch(`/api/v1/slide/${encodeURIComponent(file.name)}/metadata`);
+            if (metaRes.ok) {
+              const remoteMeta = await metaRes.json();
+              const meta = {
+                id: file.name,
+                name: file.name,
+                dimensions: `${remoteMeta.width.toLocaleString()} × ${remoteMeta.height.toLocaleString()} px`,
+                width: remoteMeta.width,
+                height: remoteMeta.height,
+                magnification: remoteMeta.magnification || "40x",
+                mpp: remoteMeta.mpp || 0.25,
+                fileSize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+                tileSourceUrl: {
+                  height: remoteMeta.height,
+                  width: remoteMeta.width,
+                  tileSize: remoteMeta.tileWidth || 256,
+                  minLevel: 0,
+                  maxLevel: remoteMeta.levels - 1,
+                  getTileUrl: function (level, x, y) {
+                    return `/api/v1/slide/${encodeURIComponent(file.name)}/tile/${level}/${x}/${y}.png`;
+                  }
+                },
+                offsetX: 0,
+                offsetY: 0
+              };
+
+              sidebarController.updateSlideMetadata(meta);
+              if (statusSlideSize) statusSlideSize.textContent = `${remoteMeta.width.toLocaleString()} × ${remoteMeta.height.toLocaleString()}`;
+              if (statusMPP) statusMPP.textContent = `${meta.mpp} μm`;
+
+              viewerManager.loadSlide(meta, meta.tileSourceUrl);
+              annotationManager.render();
+              
+              if (backendIndicator) {
+                backendIndicator.className = 'backend-indicator online';
+                backendIndicator.innerHTML = '<span class="dot"></span> Dynamic Tile Mode';
+              }
+              return;
+            }
           }
-        };
-        img.src = objectUrl;
+        } catch (uploadErr) {
+          console.error("Failed to upload WSI file to server:", uploadErr);
+          alert("Không thể upload file WSI lên Tile Server. Đảm bảo python server.py đang chạy.");
+        }
       }
+
+      // Fallback for regular image files (PNG / JPG)
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const xminMatch = file.name.match(/xmin(\d+)/i);
+        const yminMatch = file.name.match(/ymin(\d+)/i);
+        const offsetX = xminMatch ? parseInt(xminMatch[1], 10) : 0;
+        const offsetY = yminMatch ? parseInt(yminMatch[1], 10) : 0;
+
+        const customMeta = {
+          id: `local-${Date.now()}`,
+          name: file.name,
+          dimensions: `${img.naturalWidth.toLocaleString()} × ${img.naturalHeight.toLocaleString()} px`,
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+          magnification: '40x',
+          mpp: 0.25,
+          fileSize: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+          imageUrl: objectUrl,
+          offsetX: offsetX,
+          offsetY: offsetY
+        };
+        sidebarController.updateSlideMetadata(customMeta);
+        if (statusSlideSize) statusSlideSize.textContent = `${img.naturalWidth.toLocaleString()} × ${img.naturalHeight.toLocaleString()}`;
+        if (statusMPP) statusMPP.textContent = `${customMeta.mpp} μm`;
+
+        viewerManager.loadSlide(customMeta, { type: 'image', url: objectUrl });
+        
+        if (annotationManager.annotations.length > 0) {
+          annotationManager.autoDetectOffset();
+          annotationManager.render();
+          sidebarController.renderAnnotationList(annotationManager.annotations);
+        } else {
+          annotationManager.render();
+          sidebarController.renderAnnotationList([]);
+        }
+      };
+      img.src = objectUrl;
     });
   }
 
