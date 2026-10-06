@@ -373,7 +373,18 @@ class SidebarController {
     if (this.propertiesForm) this.propertiesForm.classList.remove('hidden');
     if (this.noSelectionMsg) this.noSelectionMsg.classList.add('hidden');
 
-    if (this.propLabel) this.propLabel.value = ann.label || 'Tumor';
+    if (this.propLabel) {
+      const label = ann.label || 'Tumor';
+      this.propLabel.querySelectorAll('option[data-imported-label]').forEach(option => option.remove());
+      if (!Array.from(this.propLabel.options).some(option => option.value === label)) {
+        const option = document.createElement('option');
+        option.value = label;
+        option.textContent = label;
+        option.dataset.importedLabel = 'true';
+        this.propLabel.appendChild(option);
+      }
+      this.propLabel.value = label;
+    }
     if (this.propColor) {
       this.propColor.value = ann.color || '#ef4444';
       if (this.colorHexText) this.colorHexText.textContent = ann.color || '#ef4444';

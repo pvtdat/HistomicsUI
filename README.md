@@ -85,6 +85,8 @@ HistomicsUI/
 
 - Bấm nút **Import** ở thanh tiêu đề trên cùng để chọn file `annotation.json` từ máy tính.
 - Khi import, các nhãn có trong bảng màu lớp được tự động gán màu chuẩn, bao gồm các nhãn có tiền tố `Mostly`; nhãn ngoài bảng giữ màu từ file.
+- Khi chọn annotation, **Properties > Label** hiển thị đúng nhãn hiện tại, kể cả nhãn import không có sẵn trong danh sách lớp.
+- Import và **Bật hiện toàn bộ** hiển thị các annotation không đen, ẩn các annotation màu RGB `[0, 0, 0]`. Có thể bật lại annotation đen bằng nút mắt riêng của annotation hoặc nhóm.
 - Bấm nút **Export** để tải xuống tất cả các hình vẽ/vùng chọn chú thích hiện tại thành file JSON.
 
 ### 4. Render Ảnh SVS Overlay Bằng Python (Offline)

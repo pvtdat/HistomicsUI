@@ -302,6 +302,16 @@ class AnnotationManager {
     }
   }
 
+  isBlackAnnotation(ann) {
+    if (Array.isArray(ann.color)) {
+      return ann.color.length >= 3 && ann.color.slice(0, 3).every(channel => Number(channel) === 0);
+    }
+    const color = String(ann.color || '').toLowerCase().replace(/\s+/g, '');
+    return color === 'black' ||
+      /^#(?:000|000000|000[0-9a-f]|000000[0-9a-f]{2})$/.test(color) ||
+      /^rgba?\(0(?:\.0+)?%?,0(?:\.0+)?%?,0(?:\.0+)?%?(?:,[\d.]+%?)?\)$/.test(color);
+  }
+
   toggleAllVisibility(visibleState) {
     if (typeof visibleState === 'boolean') {
       this.allVisible = visibleState;
@@ -309,7 +319,7 @@ class AnnotationManager {
       this.allVisible = !this.allVisible;
     }
     this.annotations.forEach(ann => {
-      ann.visible = this.allVisible;
+      ann.visible = this.allVisible && !this.isBlackAnnotation(ann);
     });
     this.render();
     this.onAnnotationListChange(this.annotations);
@@ -687,8 +697,7 @@ class AnnotationManager {
         this.saveStateForUndo();
         this.annotations = parsed;
         this.selectedId = null;
-        this.render();
-        this.onAnnotationListChange(this.annotations);
+        this.toggleAllVisibility(true);
         this.onSelectionChange(null);
       } else {
         alert("Không tìm thấy dữ liệu chú thích (annotations) hợp lệ trong file JSON.");
