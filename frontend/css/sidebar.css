@@ -148,16 +148,89 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-height: 220px;
+  gap: 6px;
+  max-height: 340px;
   overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.annotation-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ann-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  min-width: 0;
+}
+
+.ann-group-header:hover {
+  border-color: var(--border-highlight);
+  background-color: var(--bg-hover);
+}
+
+.ann-group-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+
+.ann-group-chevron.collapsed {
+  transform: rotate(-90deg);
+}
+
+.ann-group-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ann-group-count {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 1px 6px;
+  border-radius: 10px;
+  background-color: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.ann-group-items {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 12px;
+  min-width: 0;
+}
+
+.ann-group-items.hidden {
+  display: none;
 }
 
 .annotation-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 8px;
+  color: var(--text-primary);
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -171,6 +244,7 @@
 }
 
 .annotation-item.selected {
+  color: #6366f1 !important;
   border-color: var(--accent-primary);
   background-color: var(--accent-light);
 }
@@ -179,6 +253,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ann-item-text {
+  min-width: 0;
+  flex: 1;
 }
 
 .ann-color-dot {
@@ -190,19 +271,25 @@
 
 .ann-item-name {
   font-weight: 500;
-  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ann-item-type {
   font-size: 10px;
   color: var(--text-muted);
   font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ann-item-actions {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .btn-icon-sm {

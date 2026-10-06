@@ -34,7 +34,6 @@ class SidebarController {
     this.globalStrokeOpacitySlider = document.getElementById('globalStrokeOpacitySlider');
     this.btnShowAllAnn = document.getElementById('btnShowAllAnn');
     this.btnHideAllAnn = document.getElementById('btnHideAllAnn');
-    this.btnAutoColor = document.getElementById('btnAutoColor');
     // Zoom Elements
     this.zoomSlider = document.getElementById('zoomSlider');
     this.zoomInput = document.getElementById('zoomInput');
@@ -42,8 +41,6 @@ class SidebarController {
     this.btnZoomOut = document.getElementById('btnZoomOut');
     this.presetBtns = document.querySelectorAll('.btn-zoom-preset');
     this.btnDownloadView = document.getElementById('btnDownloadView');
-    this.btnDownloadArea = document.getElementById('btnDownloadArea');
-
     this.initEvents();
   }
 
@@ -83,16 +80,10 @@ class SidebarController {
       });
     }
 
-    // Download View & Download Area Buttons
+    // Download View
     if (this.btnDownloadView) {
       this.btnDownloadView.addEventListener('click', () => {
         this.viewerManager.downloadViewSnapshot();
-      });
-    }
-
-    if (this.btnDownloadArea) {
-      this.btnDownloadArea.addEventListener('click', () => {
-        this.viewerManager.downloadAreaSnapshot();
       });
     }
 
@@ -142,12 +133,6 @@ class SidebarController {
       });
     }
 
-    if (this.btnAutoColor) {
-      this.btnAutoColor.addEventListener('click', () => {
-        this.annotationManager.autoColorByLabel();
-      });
-    }
-
     if (this.annotationSearch) {
       this.annotationSearch.addEventListener('input', () => {
         this.renderAnnotationList(this.annotationManager.annotations);
@@ -156,7 +141,10 @@ class SidebarController {
 
     if (this.propLabel) {
       this.propLabel.addEventListener('change', () => {
-        this.annotationManager.updateSelectedAnnotation({ label: this.propLabel.value });
+        this.annotationManager.updateSelectedAnnotation({
+          label: this.propLabel.value,
+          color: this.annotationManager.getColorForLabel(this.propLabel.value) || '#000000'
+        });
       });
     }
 
@@ -245,86 +233,133 @@ class SidebarController {
       return;
     }
 
-    filtered.forEach(ann => {
-      const li = document.createElement('li');
-      li.className = `annotation-item ${ann.id === this.annotationManager.selectedId ? 'selected' : ''}`;
-      
-      const metrics = this.annotationManager.calculateMetrics(ann);
-      const isVisible = ann.visible !== false;
+    const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const prettify = (s) => {
+      const t = String(s || 'Annotation').replace(/[_-]+/g, ' ').trim();
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    };
+    const eyeOn = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    const eyeOff = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
 
-      li.innerHTML = `
-        <div class="ann-item-left">
-          <button class="btn-eye-toggle ${!isVisible ? 'hidden-ann' : ''}" title="${!isVisible ? 'Hiện chú thích' : 'Ẩn chú thích'}">
-            ${!isVisible ? `
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                <line x1="1" y1="1" x2="23" y2="23"/>
-              </svg>
-            ` : `
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                <circle cx="12" cy="12" r="3"/>
-              </svg>
-            `}
-          </button>
-          <span class="ann-color-dot" style="background-color: ${ann.color || '#ef4444'}"></span>
-          <div>
-            <div class="ann-item-name">${ann.label || 'Annotation'}</div>
-            <div class="ann-item-type">${ann.type.toUpperCase()} • ${metrics.area}</div>
-          </div>
+    // Group annotations by label (title)
+    const groups = new Map();
+    filtered.forEach(ann => {
+      const key = ann.label || 'Annotation';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(ann);
+    });
+
+    this.collapsedGroups = this.collapsedGroups || {};
+    const selectedId = this.annotationManager.selectedId;
+
+    groups.forEach((items, label) => {
+      const hasSelected = items.some(a => a.id === selectedId);
+      let collapsed;
+      if (label in this.collapsedGroups) {
+        collapsed = this.collapsedGroups[label];
+      } else if (filterText || hasSelected) {
+        collapsed = false; // expand matches / selected group automatically
+      } else {
+        collapsed = items.length > 10;
+      }
+
+      const allVisible = items.every(a => a.visible !== false);
+      const groupColor = items[0].color || '#ef4444';
+      const display = prettify(label);
+
+      const groupLi = document.createElement('li');
+      groupLi.className = 'annotation-group';
+      groupLi.innerHTML = `
+        <div class="ann-group-header" title="${esc(label)}">
+          <svg class="ann-group-chevron ${collapsed ? 'collapsed' : ''}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          <span class="ann-color-dot" style="background-color: ${esc(groupColor)}"></span>
+          <span class="ann-group-name">${esc(display)}</span>
+          <span class="ann-group-count">${items.length}</span>
+          <button class="btn-eye-toggle ann-group-eye ${!allVisible ? 'hidden-ann' : ''}" title="${allVisible ? 'Ẩn cả nhóm' : 'Hiện cả nhóm'}">${allVisible ? eyeOn : eyeOff}</button>
         </div>
-        <div class="ann-item-actions">
-          <button class="btn-icon-sm btn-zoom" title="Zoom to Annotation">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-          </button>
-          <button class="btn-icon-sm btn-del" title="Delete">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
+        <ul class="ann-group-items ${collapsed ? 'hidden' : ''}"></ul>
       `;
 
-      // Item click selects annotation
-      li.addEventListener('click', (e) => {
-        if (!e.target.closest('.ann-item-actions') && !e.target.closest('.btn-eye-toggle')) {
-          this.annotationManager.selectAnnotation(ann.id);
+      const header = groupLi.querySelector('.ann-group-header');
+      header.addEventListener('click', (e) => {
+        if (e.target.closest('.ann-group-eye')) return;
+        const nextCollapsed = !collapsed;
+        this.collapsedGroups[label] = nextCollapsed;
+        if (nextCollapsed && items.some(a => a.id === this.annotationManager.selectedId)) {
+          this.viewerManager.cancelViewportAnimation();
+          this.annotationManager.selectAnnotation(null);
+          return;
         }
+        this.renderAnnotationList(this.annotationManager.annotations);
+      });
+      groupLi.querySelector('.ann-group-eye').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const target = !allVisible;
+        items.forEach(a => { a.visible = target; });
+        this.annotationManager.render();
+        this.annotationManager.onAnnotationListChange(this.annotationManager.annotations);
       });
 
-      // Eye toggle button
-      const eyeBtn = li.querySelector('.btn-eye-toggle');
-      if (eyeBtn) {
-        eyeBtn.addEventListener('click', (e) => {
+      const itemsUl = groupLi.querySelector('.ann-group-items');
+
+      items.forEach((ann, idx) => {
+        const li = document.createElement('li');
+        li.className = `annotation-item ${ann.id === selectedId ? 'selected' : ''}`;
+
+        const metrics = this.annotationManager.calculateMetrics(ann);
+        const isVisible = ann.visible !== false;
+        const typeName = ann.type.charAt(0).toUpperCase() + ann.type.slice(1);
+
+        li.innerHTML = `
+          <div class="ann-item-left">
+            <button class="btn-eye-toggle ${!isVisible ? 'hidden-ann' : ''}" title="${!isVisible ? 'Hiện chú thích' : 'Ẩn chú thích'}">${!isVisible ? eyeOff : eyeOn}</button>
+            <div class="ann-item-text">
+              <div class="ann-item-name" title="${esc(label)} #${idx + 1}">${esc(typeName)} #${idx + 1}</div>
+              <div class="ann-item-type">${esc(metrics.area)}</div>
+            </div>
+          </div>
+          <div class="ann-item-actions">
+            <button class="btn-icon-sm btn-zoom" title="Zoom to Annotation">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </button>
+            <button class="btn-icon-sm btn-del" title="Delete">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        `;
+
+        li.addEventListener('click', (e) => {
+          if (!e.target.closest('.ann-item-actions') && !e.target.closest('.btn-eye-toggle')) {
+            this.annotationManager.selectAnnotation(ann.id);
+          }
+        });
+
+        li.querySelector('.btn-eye-toggle').addEventListener('click', (e) => {
           e.stopPropagation();
           this.annotationManager.toggleAnnotationVisibility(ann.id);
         });
-      }
 
-      // Zoom button
-      const zoomBtn = li.querySelector('.btn-zoom');
-      if (zoomBtn) {
-        zoomBtn.addEventListener('click', (e) => {
+        li.querySelector('.btn-zoom').addEventListener('click', (e) => {
           e.stopPropagation();
           this.annotationManager.selectAnnotation(ann.id);
           this.viewerManager.zoomToAnnotation(ann.points);
         });
-      }
 
-      // Delete button
-      const delBtn = li.querySelector('.btn-del');
-      if (delBtn) {
-        delBtn.addEventListener('click', (e) => {
+        li.querySelector('.btn-del').addEventListener('click', (e) => {
           e.stopPropagation();
           this.annotationManager.deleteById(ann.id);
         });
-      }
 
-      this.annotationList.appendChild(li);
+        itemsUl.appendChild(li);
+      });
+
+      this.annotationList.appendChild(groupLi);
     });
   }
 

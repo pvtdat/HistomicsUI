@@ -136,8 +136,8 @@ class PathologyAPI {
         {
           id: "ann-demo-1",
           type: "polygon",
-          label: "blood_vessel",
-          color: "#10b981",
+          label: "Blood, Fat, Exclude...",
+          color: "#000000",
           notes: "Sample blood vessel annotation",
           points: [
             [109900, 20388],
@@ -150,8 +150,8 @@ class PathologyAPI {
         {
           id: "ann-demo-2",
           type: "rectangle",
-          label: "roi",
-          color: "#ef4444",
+          label: "Outside ROI / Don't Care",
+          color: "#000000",
           notes: "Region of interest",
           points: [
             [109446, 18274],

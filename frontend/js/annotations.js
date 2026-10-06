@@ -2,6 +2,16 @@
  * HistomicsUI Vector Annotation Layer & Tools Engine
  * Handles SVG rendering, creation, editing, selection, area metrics, and undo/redo history.
  */
+const ANNOTATION_LABEL_PALETTE = {
+  tumor: '#e6194b',
+  stroma: '#3cb44b',
+  'lymphocytic infiltrate': '#0082c8',
+  'necrosis / debris': '#f58230',
+  'glandular secretions': '#911eb4',
+  'outside roi / dont care': '#000000',
+  'blood, fat, exclude': '#000000'
+};
+
 class AnnotationManager {
   constructor(svgElement, viewerManager, options = {}) {
     this.svg = svgElement;
@@ -88,6 +98,36 @@ class AnnotationManager {
     return this.viewerManager.screenToImage(screenPt);
   }
 
+  getColorForLabel(label) {
+    const normalizedLabel = String(label || '')
+      .toLowerCase()
+      .replace(/['’]/g, '')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s*\/\s*/g, ' / ')
+      .replace(/\s+/g, ' ')
+      .replace(/[.…]+$/g, '')
+      .trim()
+      .replace(/^mostly\s+/, '');
+    const aliases = {
+      lymphocyte: 'lymphocytic infiltrate',
+      lymphocytic: 'lymphocytic infiltrate',
+      necrosis: 'necrosis / debris',
+      debris: 'necrosis / debris',
+      'glandular secretion': 'glandular secretions',
+      'outside roi': 'outside roi / dont care',
+      'dont care': 'outside roi / dont care',
+      roi: 'outside roi / dont care',
+      blood: 'blood, fat, exclude',
+      fat: 'blood, fat, exclude',
+      exclude: 'blood, fat, exclude',
+      'blood vessel': 'blood, fat, exclude',
+      'blood, fat, exclude': 'blood, fat, exclude',
+      other: 'blood, fat, exclude'
+    };
+    const paletteKey = aliases[normalizedLabel] || normalizedLabel;
+    return ANNOTATION_LABEL_PALETTE[paletteKey] || null;
+  }
+
   handleMouseDown(e) {
     if (e.button !== 0) return; // Only left click
     const imgPt = this.getPointerImageCoords(e);
@@ -117,8 +157,8 @@ class AnnotationManager {
       const newPoint = {
         id: `ann-${Date.now()}`,
         type: 'point',
-        label: 'Lymphocyte',
-        color: '#3b82f6',
+        label: 'Lymphocytic infiltrate',
+        color: this.getColorForLabel('Lymphocytic infiltrate'),
         notes: '',
         points: [[imgPt.x, imgPt.y]]
       };
@@ -160,7 +200,7 @@ class AnnotationManager {
           id: `ann-${Date.now()}`,
           type: 'rectangle',
           label: 'Tumor',
-          color: '#ef4444',
+          color: this.getColorForLabel('Tumor'),
           notes: '',
           points: [[minX, minY], [maxX, maxY]]
         };
@@ -189,7 +229,7 @@ class AnnotationManager {
         id: `ann-${Date.now()}`,
         type: 'polygon',
         label: 'Tumor',
-        color: '#ef4444',
+        color: this.getColorForLabel('Tumor'),
         notes: '',
         points: pts
       };
@@ -285,21 +325,9 @@ class AnnotationManager {
   }
 
   autoColorByLabel() {
-    const palette = {
-      'tumor': '#ef4444',
-      'stroma': '#10b981',
-      'necrosis': '#a855f7',
-      'lymphocyte': '#3b82f6',
-      'blood vessel': '#f97316',
-      'roi': '#ec4899',
-      'other': '#6b7280'
-    };
     this.saveStateForUndo();
     this.annotations.forEach(ann => {
-      const key = (ann.label || 'Other').toLowerCase();
-      if (palette[key]) {
-        ann.color = palette[key];
-      }
+      ann.color = this.getColorForLabel(ann.label) || '#000000';
     });
     this.render();
     this.onAnnotationListChange(this.annotations);
@@ -638,7 +666,10 @@ class AnnotationManager {
       processElement(data, 'Annotation');
     }
 
-    return items;
+    return items.map(ann => ({
+      ...ann,
+      color: this.getColorForLabel(ann.label) || ann.color
+    }));
   }
 
   importJson(jsonData) {

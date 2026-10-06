@@ -10,17 +10,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnResetView = document.getElementById('btnResetView');
   const btnFullscreen = document.getElementById('btnFullscreen');
 
-  const statusX = document.getElementById('statusX');
-  const statusY = document.getElementById('statusY');
+  const statusPosition = document.getElementById('statusPosition');
   const statusZoom = document.getElementById('statusZoom');
   const statusMPP = document.getElementById('statusMPP');
   const statusSlideSize = document.getElementById('statusSlideSize');
-  const backendIndicator = document.getElementById('backendStatus');
-
-  if (backendIndicator) {
-    backendIndicator.className = 'backend-indicator online';
-    backendIndicator.innerHTML = '<span class="dot"></span> Pure Frontend Mode';
-  }
 
   // Initialize Core Viewer
   const viewerManager = new PathologyViewer('openseadragon-viewer', {
@@ -32,8 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (window.annotationManager) window.annotationManager.render();
     },
     onMouseMove: (coords) => {
-      if (statusX) statusX.textContent = coords.x.toLocaleString();
-      if (statusY) statusY.textContent = coords.y.toLocaleString();
+      if (statusPosition) statusPosition.textContent = `${coords.x.toLocaleString()}, ${coords.y.toLocaleString()}`;
     }
   });
 
@@ -79,6 +71,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 3. Load annotations
     const annList = await PathologyAPI.getAnnotations(slideId);
+    annList.forEach((ann) => {
+      const label = String(ann.label || '')
+        .toLowerCase()
+        .replace(/['’]/g, '')
+        .replace(/[_-]+/g, ' ')
+        .trim();
+      if (ann.visible === undefined && (label === 'roi' || label.startsWith('outside roi') || label === 'dont care')) {
+        ann.visible = false;
+      }
+    });
     annotationManager.annotations = annList;
     annotationManager.selectedId = null;
     annotationManager.autoDetectOffset();
@@ -109,11 +111,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (isWsi) {
         // Upload WSI file to Tile Server
-        if (backendIndicator) {
-          backendIndicator.className = 'backend-indicator busy';
-          backendIndicator.innerHTML = '<span class="dot"></span> Uploading WSI File...';
-        }
-        
         try {
           const formData = new FormData();
           formData.append('file', file);
@@ -160,11 +157,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
               viewerManager.loadSlide(meta, meta.tileSourceUrl);
               annotationManager.render();
-              
-              if (backendIndicator) {
-                backendIndicator.className = 'backend-indicator online';
-                backendIndicator.innerHTML = '<span class="dot"></span> Dynamic Tile Mode';
-              }
               return;
             }
           }

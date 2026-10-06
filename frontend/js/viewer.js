@@ -23,7 +23,8 @@ class PathologyViewer {
       showNavigationControl: false,
       showNavigator: true,
       navigatorId: "overview-container",
-      animationTime: 0.2,
+      animationTime: 0.45,
+      springStiffness: 5,
       blendTime: 0.1,
       constrainDuringPan: true,
       maxZoomPixelRatio: 10,
@@ -32,31 +33,33 @@ class PathologyViewer {
       gestureSettingsMouse: {
         clickToZoom: false,
         dblClickToZoom: false,
-        scrollToZoom: true
+        scrollToZoom: true,
+        zoomPerScroll: 1.15
       },
       gestureSettingsTouch: {
         pinchToZoom: true
       }
     });
 
-    // Handle mouse movement over viewer to track slide coordinates
-    const coordsPill = document.getElementById('coords-pill-text');
-    const tracker = new OpenSeadragon.MouseTracker({
-      element: this.viewer.element,
-      moveHandler: (evt) => {
+    // Listen on the outer viewer so the sibling annotation SVG cannot block pointer tracking.
+    const viewerSurface = this.viewer.container.parentElement;
+    if (viewerSurface) {
+      viewerSurface.addEventListener('mousemove', (evt) => {
         if (!this.viewer.viewport) return;
-        const webPoint = evt.position;
+        const viewerRect = this.viewer.container.getBoundingClientRect();
+        const webPoint = new OpenSeadragon.Point(
+          evt.clientX - viewerRect.left,
+          evt.clientY - viewerRect.top
+        );
         const viewportPoint = this.viewer.viewport.pointFromPixel(webPoint);
         const imagePoint = this.viewer.viewport.viewportToImageCoordinates(viewportPoint);
-        
+
         const imgX = Math.round(Math.max(0, Math.min(this.imageWidth, imagePoint.x)));
         const imgY = Math.round(Math.max(0, Math.min(this.imageHeight, imagePoint.y)));
-        
-        if (coordsPill) coordsPill.textContent = `${imgX.toLocaleString()}, ${imgY.toLocaleString()}`;
+
         this.onMouseMove({ x: imgX, y: imgY });
-      }
-    });
-    tracker.setTracking(true);
+      });
+    }
 
     // Continuous real-time viewport change events (fires 60fps on wheel, gesture & trackpad zoom)
     const triggerViewportChange = () => {
@@ -74,6 +77,8 @@ class PathologyViewer {
     this.viewer.addHandler('open', triggerViewportChange);
     this.viewer.addHandler('zoom', triggerViewportChange);
     this.viewer.addHandler('pan', triggerViewportChange);
+    this.viewer.addHandler('canvas-scroll', triggerViewportChange);
+    this.viewer.addHandler('resize', triggerViewportChange);
   }
 
   preventBrowserZoom() {
@@ -96,9 +101,8 @@ class PathologyViewer {
   updateScalebar() {
     if (!this.viewer || !this.viewer.viewport) return;
 
-    const scalebarLine = document.getElementById('scalebar-line');
-    const scalebarText = document.getElementById('scalebar-text');
-    if (!scalebarLine || !scalebarText) return;
+    const statusScale = document.getElementById('statusScale');
+    if (!statusScale) return;
 
     const containerWidth = this.viewer.container ? this.viewer.container.clientWidth : 800;
     const viewportBounds = this.viewer.viewport.getBounds();
@@ -128,13 +132,10 @@ class PathologyViewer {
       }
     }
 
-    const barPixelWidth = Math.max(30, Math.round(chosenStep * screenPxPerMicron));
-    scalebarLine.style.width = `${barPixelWidth}px`;
-
     if (chosenStep >= 1000) {
-      scalebarText.textContent = `${chosenStep / 1000} mm`;
+      statusScale.textContent = `${chosenStep / 1000} mm`;
     } else {
-      scalebarText.textContent = `${chosenStep} µm`;
+      statusScale.textContent = `${chosenStep} µm`;
     }
   }
 
@@ -264,6 +265,13 @@ class PathologyViewer {
     if (this.viewer && this.viewer.viewport) {
       this.viewer.viewport.goHome();
     }
+  }
+
+  cancelViewportAnimation() {
+    if (!this.viewer || !this.viewer.viewport) return;
+    const viewport = this.viewer.viewport;
+    viewport.panTo(viewport.getCenter(true), true);
+    viewport.zoomTo(viewport.getZoom(true), null, true);
   }
 
   setMagnification(targetMag) {

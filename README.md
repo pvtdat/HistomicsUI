@@ -84,6 +84,7 @@ HistomicsUI/
 ### 3. Import / Export Annotation JSON
 
 - Bấm nút **Import** ở thanh tiêu đề trên cùng để chọn file `annotation.json` từ máy tính.
+- Khi import, các nhãn có trong bảng màu lớp được tự động gán màu chuẩn, bao gồm các nhãn có tiền tố `Mostly`; nhãn ngoài bảng giữ màu từ file.
 - Bấm nút **Export** để tải xuống tất cả các hình vẽ/vùng chọn chú thích hiện tại thành file JSON.
 
 ### 4. Render Ảnh SVS Overlay Bằng Python (Offline)

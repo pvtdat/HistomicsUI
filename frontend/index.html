@@ -335,16 +335,6 @@
           <div id="drawing-instructions" class="drawing-hint hidden">
             Click to add points, double-click or press Enter to close polygon.
           </div>
-          <!-- Physical Scale Bar Overlay (e.g. 200 µm) -->
-          <div id="scalebar-widget" class="scalebar-widget">
-            <div id="scalebar-line" class="scalebar-line"></div>
-            <span id="scalebar-text" class="scalebar-text">200 µm</span>
-          </div>
-          <!-- Coordinates Indicator Pill -->
-          <div id="coords-widget" class="coords-widget">
-            <span>📍</span>
-            <span id="coords-pill-text">0, 0</span>
-          </div>
         </section>
 
         <!-- Right Sidebar -->
@@ -466,13 +456,6 @@
                   title="Download current view snapshot"
                 >
                   Download View
-                </button>
-                <button
-                  id="btnDownloadArea"
-                  class="btn-zoom-action"
-                  title="Download selected region"
-                >
-                  Download Area
                 </button>
               </div>
             </div>
@@ -615,24 +598,6 @@
                     class="mini-range"
                   />
                 </div>
-                <button
-                  type="button"
-                  id="btnAutoColor"
-                  class="ann-tool-btn"
-                  title="Palette Auto-Color (Tự động phân màu theo nhãn)"
-                >
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 2a7 7 0 1 0 7 7" />
-                  </svg>
-                </button>
               </div>
               <div class="annotation-filter">
                 <input
@@ -675,21 +640,21 @@
                 <div class="form-group">
                   <label for="propLabel">Label</label>
                   <select id="propLabel" class="form-control">
+                    <option value="Outside ROI / Don't Care">Outside ROI / Don't Care</option>
                     <option value="Tumor">Tumor</option>
                     <option value="Stroma">Stroma</option>
-                    <option value="Necrosis">Necrosis</option>
-                    <option value="Lymphocyte">Lymphocyte</option>
-                    <option value="Blood Vessel">Blood Vessel</option>
-                    <option value="ROI">ROI</option>
-                    <option value="Other">Other</option>
+                    <option value="Lymphocytic infiltrate">Lymphocytic infiltrate</option>
+                    <option value="Necrosis / debris">Necrosis / debris</option>
+                    <option value="Glandular secretions">Glandular secretions</option>
+                    <option value="Blood, Fat, Exclude...">Blood, Fat, Exclude...</option>
                   </select>
                 </div>
 
                 <div class="form-group">
                   <label for="propColor">Color</label>
                   <div class="color-picker-row">
-                    <input type="color" id="propColor" value="#ff3b30" />
-                    <span id="colorHexText" class="color-hex">#ff3b30</span>
+                    <input type="color" id="propColor" value="#e6194b" />
+                    <span id="colorHexText" class="color-hex">#e6194b</span>
                   </div>
                 </div>
 
@@ -723,11 +688,11 @@
                   <label>Calculated Metrics</label>
                   <div class="metric-badge">
                     <span>Area:</span>
-                    <strong id="propArea">--</strong>
+                    <span id="propArea">--</span>
                   </div>
                   <div class="metric-badge">
                     <span>Perimeter:</span>
-                    <strong id="propPerimeter">--</strong>
+                    <span id="propPerimeter">--</span>
                   </div>
                 </div>
 
@@ -748,11 +713,9 @@
 
       <!-- Bottom Status Bar -->
       <footer class="status-bar">
-        <div class="status-item">
-          <span class="status-label">X:</span>
-          <span id="statusX" class="status-val">0</span>
-          <span class="status-label">Y:</span>
-          <span id="statusY" class="status-val">0</span>
+        <div class="status-item status-chip">
+          <span class="status-label">Position:</span>
+          <span id="statusPosition" class="status-val">0, 0</span>
         </div>
         <div class="status-divider"></div>
         <div class="status-item">
@@ -770,10 +733,9 @@
           <span id="statusSlideSize" class="status-val">40960 × 30720</span>
         </div>
         <div class="status-spacer"></div>
-        <div class="status-item">
-          <span id="backendStatus" class="backend-indicator online">
-            <span class="dot"></span> Pure Frontend Mode
-          </span>
+        <div class="status-item status-chip">
+          <span class="status-label">Scale:</span>
+          <span id="statusScale" class="status-val">200 µm</span>
         </div>
       </footer>
     </div>
