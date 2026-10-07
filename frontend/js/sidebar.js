@@ -29,6 +29,12 @@ class SidebarController {
     this.propNotes = document.getElementById('propNotes');
     this.propArea = document.getElementById('propArea');
     this.propPerimeter = document.getElementById('propPerimeter');
+    this.predictionControls = document.getElementById('tumorPredictionControls');
+    this.btnPredictTumor = document.getElementById('btnPredictTumor');
+    this.btnClearPrediction = document.getElementById('btnClearPrediction');
+    this.predictionStatus = document.getElementById('predictionStatus');
+    this.predictionPending = false;
+    this.predictionError = null;
 
     this.globalOpacitySlider = document.getElementById('globalOpacitySlider');
     this.globalStrokeOpacitySlider = document.getElementById('globalStrokeOpacitySlider');
@@ -45,6 +51,12 @@ class SidebarController {
   }
 
   initEvents() {
+    this.propertiesForm.addEventListener('submit', e => e.preventDefault());
+    this.btnPredictTumor.addEventListener('click', () => this.predictSelectedTumor());
+    this.btnClearPrediction.addEventListener('click', () => {
+      this.predictionError = null;
+      this.annotationManager.updateSelectedAnnotation({ prediction: null });
+    });
     // Zoom Slider Event
     if (this.zoomSlider) {
       this.zoomSlider.addEventListener('input', (e) => {
@@ -395,10 +407,95 @@ class SidebarController {
       if (this.propFillOpacityVal) this.propFillOpacityVal.textContent = `${Math.round(opacity * 100)}%`;
     }
     if (this.propNotes) this.propNotes.value = ann.notes || '';
+    this.updatePredictionControls(ann);
 
     const metrics = this.annotationManager.calculateMetrics(ann);
     if (this.propArea) this.propArea.textContent = metrics.area;
     if (this.propPerimeter) this.propPerimeter.textContent = metrics.perimeter;
+  }
+
+  updatePredictionControls(ann) {
+    const supported = ann.type === 'rectangle' || ann.type === 'polygon';
+    const filename = this.viewerManager.currentSlideFilename;
+    this.predictionControls.disabled = this.predictionPending || !supported || !filename;
+    const prediction = ann.prediction && ann.prediction.slideFilename === filename ? ann.prediction : null;
+    this.btnClearPrediction.classList.toggle('hidden', !prediction);
+    this.predictionStatus.classList.remove('error');
+    if (this.predictionPending) {
+      this.predictionStatus.textContent = 'Predicting tumor... Please wait.';
+    } else if (this.predictionError && this.predictionError.annotation === ann) {
+      this.predictionStatus.textContent = this.predictionError.message;
+      this.predictionStatus.classList.add('error');
+    } else if (!supported) {
+      this.predictionStatus.textContent = 'Select a rectangle or closed polygon.';
+    } else if (!filename) {
+      this.predictionStatus.textContent = 'Prediction requires an original WSI loaded from the Python backend (not a PNG/JPG or offline preview).';
+    } else if (prediction) {
+      const mode = prediction.inference
+        ? `${prediction.inference.num_classes} classes, tumor class ${prediction.inference.tumor_class}` : 'binary';
+      this.predictionStatus.textContent = `Tumor: ${(prediction.tumorFraction * 100).toFixed(2)}% of ROI pixels. Model: ${prediction.model} (${mode}); input: ${prediction.settings.input_size}; threshold: ${prediction.settings.threshold}.`;
+    } else {
+      this.predictionStatus.textContent = 'Predict within the selected region; red mask marks predicted tumor.';
+    }
+  }
+
+  async predictSelectedTumor() {
+    const ann = this.annotationManager.annotations.find(a => a.id === this.annotationManager.selectedId);
+    const filename = this.viewerManager.currentSlideFilename;
+    if (!ann || this.predictionPending) return;
+    this.predictionError = null;
+    try {
+      if (!filename || !['rectangle', 'polygon'].includes(ann.type)) {
+        throw new Error('Select a rectangle/polygon on an original WSI loaded from the backend.');
+      }
+      const numberInput = id => {
+        const input = document.getElementById(id);
+        if (!input.reportValidity()) throw new Error(`Invalid input: ${input.labels[0].textContent}`);
+        return Number(input.value);
+      };
+      const rgbInput = id => {
+        const input = document.getElementById(id);
+        const parts = input.value.split(',').map(value => value.trim());
+        const values = parts.map(Number);
+        if (parts.length !== 3 || parts.some(value => !value) || values.some(value => !Number.isFinite(value)) ||
+            (id === 'predictStd' && values.some(value => value <= 0))) {
+          throw new Error(`Invalid ${input.labels[0].textContent}: enter three comma-separated numbers.`);
+        }
+        return values;
+      };
+      const settings = {
+        input_size: numberInput('predictInputSize'),
+        padding: numberInput('predictPadding'),
+        threshold: numberInput('predictThreshold'),
+        mean: rgbInput('predictMean'),
+        std: rgbInput('predictStd')
+      };
+      const points = JSON.stringify(ann.points);
+      const annotations = this.annotationManager.annotations;
+      this.predictionPending = true;
+      this.updatePredictionControls(ann);
+      const result = await PathologyAPI.predictTumor(filename, ann, settings);
+      // Discard responses after a slide switch, import, undo, deletion or geometry change.
+      if (this.viewerManager.currentSlideFilename !== filename ||
+          this.annotationManager.annotations !== annotations ||
+          !annotations.includes(ann) || JSON.stringify(ann.points) !== points) {
+        alert('Prediction discarded because the slide or annotation changed. Select the region and try again.');
+        return;
+      }
+      this.annotationManager.saveStateForUndo();
+      ann.prediction = { ...result, slideFilename: filename };
+      this.annotationManager.render();
+      this.annotationManager.onAnnotationListChange(annotations);
+    } catch (error) {
+      console.error('Tumor prediction failed:', error);
+      this.predictionError = { annotation: ann, message: error.message };
+      const selected = this.annotationManager.annotations.find(a => a.id === this.annotationManager.selectedId);
+      if (selected !== ann) alert(error.message);
+    } finally {
+      this.predictionPending = false;
+      const selected = this.annotationManager.annotations.find(a => a.id === this.annotationManager.selectedId);
+      if (selected) this.updatePredictionControls(selected);
+    }
   }
 }
 

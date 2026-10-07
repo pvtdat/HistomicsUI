@@ -141,6 +141,7 @@ class PathologyViewer {
 
   loadSlide(slideMetadata, tileSourceUrl) {
     this.currentSlideId = slideMetadata.id;
+    this.currentSlideFilename = slideMetadata.slideFilename || null;
     this.imageWidth = slideMetadata.roiWidth || slideMetadata.width || 40960;
     this.imageHeight = slideMetadata.roiHeight || slideMetadata.height || 30720;
     this.mpp = slideMetadata.mpp || 0.25;

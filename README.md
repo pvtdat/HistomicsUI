@@ -99,6 +99,56 @@ python tools/process_svs_overlay.py
 
 Ảnh đầu ra sẽ được tạo tại `frontend/data/OVERLAY_OUTPUT_SVS.png`.
 
+### 5. Predict tumor trên vùng Annotation
+
+Tính năng dựa trên luồng xử lý của `tools/gemini-code-1791282707893.py`: cắt bounding box có padding, resize ảnh RGB, normalize theo ImageNet và suy luận. Hỗ trợ mô hình nhị phân hoàn chỉnh và checkpoint đa lớp của PathoSegX-BR. Backend dùng tile source `large_image` đang mở thay vì mở thêm OpenSlide; chỉ đọc patch ở độ phân giải giới hạn để tránh cấp phát toàn bộ ROI level 0.
+
+**Cấu hình server (PowerShell):**
+
+```powershell
+pip install torch torchvision Pillow numpy python-multipart
+$env:HISTOMICS_TUMOR_MODEL = 'C:\models\best.pt'
+python backend\server.py
+```
+
+- Mặc định mô hình nằm tại `models/best.pt`. Biến môi trường chỉ do người vận hành server cấu hình; giao diện không nhận đường dẫn checkpoint tùy ý.
+- **Checkpoint PathoSegX-BR:** hỗ trợ dictionary gồm `model_state_dict` và `config.model` (`architecture: unet`, `encoder: resnet50`, `in_channels: 3`, `num_classes: 2/5/22`). Kiến trúc được tích hợp trong `backend/pathosegx_model.py`, giữ nguyên tên tham số từ `PathoSegX-BR/src/models.py`; nạp trọng số strict, không tải pretrained weights từ Internet. Không hỗ trợ state_dict trần không có config hoặc kiến trúc khác.
+- **Ánh xạ BCSS:** mô hình 22 lớp giữ raw ID, tumor = **1**; mô hình 2 lớp tumor = **1**; mô hình 5 lớp tumor = **0**, theo `PathoSegX-BR/src/labels.py`. Đầu ra logits được softmax; pixel chỉ tính là tumor khi **argmax là lớp tumor và xác suất tumor > threshold**. Đây không phải sigmoid độc lập trên 22 lớp.
+- **Mô hình nhị phân:** vẫn hỗ trợ toàn bộ `torch.nn.Module` lưu bằng `torch.save(model, ...)`, output logits `[1, 1, H, W]`, dùng sigmoid > threshold. Module Python định nghĩa kiến trúc phải import được trên server; mô hình lưu dưới `__main__` cần xuất lại từ module import được.
+- Output phải là tensor logits `[1, C, H, W]` phù hợp số lớp; dictionary hoặc xác suất đã sigmoid/softmax không được hỗ trợ.
+- Chỉ sử dụng checkpoint đáng tin cậy: `torch.load(..., weights_only=False)` có thể thực thi mã trong file mô hình. Không upload checkpoint từ người dùng không tin cậy.
+- Server tự chọn CUDA nếu có, nếu không sử dụng CPU; cache một mô hình và tuần tự hóa inference.
+
+**Lưu ý phiên bản PyTorch/TorchVision:** hai thư viện phải dùng cặp phiên bản tương thích và cùng kiểu build (CPU/CUDA). Python hiện tại đã phát hiện `torch 2.6.0+cpu` đi với `torchvision 0.28.0`, gây lỗi `operator torchvision::nms does not exist`. Chưa thay đổi môi trường Python dùng chung. Với `torch 2.6.0+cpu`, phiên bản tương ứng là `torchvision 0.21.0` CPU; có thể cài trong môi trường riêng hoặc chỉ sửa môi trường hiện tại khi bạn cho phép:
+
+```powershell
+# Chạy với Python interpreter thực tế dùng để khởi động server.
+python -m pip install --no-deps torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
+python -c "import torch, torchvision; print(torch.__version__, torchvision.__version__)"
+python backend\server.py
+```
+
+Khởi động lại backend sau khi cập nhật mã/thư viện và refresh trình duyệt. Nếu backend vẫn trả lỗi `Checkpoint must contain a full torch.nn.Module`, bạn đang chạy process phiên bản cũ; backend mới hỗ trợ checkpoint PathoSegX-BR có `model_state_dict` + `config`.
+
+**Sử dụng:**
+
+1. Mở SVS/WSI từ backend hoặc upload một WSI. Chế độ ảnh PNG/JPG và preview offline không hỗ trợ dự đoán.
+2. Vẽ hoặc chọn **Rectangle** / **Polygon** đã đóng.
+3. Trong **Properties > Predict tumor**, chỉnh `Input size` (mặc định 512; PathoSegX-BR yêu cầu bội số 32), `Padding` (32 pixel level 0), `Threshold` (0.5), `Normalize mean/std` (ba giá trị RGB). Các thông số phải khớp preprocessing khi train; PathoSegX-BR dùng ImageNet mean/std mặc định.
+4. Bấm **Predict tumor**. Mask đỏ thay phần fill của ROI; đường viền và nhãn gốc được giữ nguyên. Mask chỉ hiển thị trong hình đã chọn, không trong padding; phần trăm tumor được tính trên pixel ROI ở độ phân giải mask, **không phải độ tin cậy chẩn đoán**.
+5. **Fill Opacity**, nút mắt và **Clear prediction** điều khiển mask. Kết quả cùng cấu hình được lưu trong annotation, hỗ trợ Undo/Redo, lưu trình duyệt và Export/Import JSON. Nếu trình duyệt hết dung lượng lưu, hệ thống báo lỗi và cần Export JSON.
+
+API: `POST /api/v1/slide/{filename}/predict-tumor`, JSON gồm `type`, `points` (tọa độ level 0), `input_size`, `padding`, `threshold`, `mean`, `std`. Kết quả gồm PNG RGBA dạng data URL, bounding box level 0, kích thước mask, `tumorPixels`, `roiPixels`, `tumorFraction`, cấu hình, tên mô hình và `inference` (`num_classes`, `tumor_class`, `mode`). Vùng nằm ngoài slide, hình suy biến hoặc output mô hình không hợp lệ bị từ chối; mô hình/thư viện thiếu được báo rõ, không tạo dự đoán giả.
+
+> Chỉ phục vụ nghiên cứu; kết quả không thay thế chẩn đoán của bác sĩ. ROI lớn được resize về một input vuông nên có thể mất chi tiết; đây là suy luận một patch, không phải tiled inference toàn tiêu bản.
+
+Kiểm tra tính năng:
+
+```powershell
+python -m unittest discover -s backend\tests -v
+node --test frontend\tests\tumor_prediction.test.cjs
+```
+
 ---
 
 ## 💡 Ghi Chú Kiến Trúc Kiến Nghị

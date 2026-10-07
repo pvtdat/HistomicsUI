@@ -18,3 +18,8 @@ node_modules/
 # Exclude large binary WSI slide data from git push
 frontend/data/*.svs
 frontend/data/*.png
+
+# Local trusted model checkpoints and Python caches
+models/
+*.pt
+__pycache__/

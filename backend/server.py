@@ -7,6 +7,10 @@ import io
 import os
 import sys
 import shutil
+import logging
+import pickle
+from typing import Literal
+from pydantic import BaseModel, Field, FiniteFloat
 from fastapi import FastAPI, HTTPException, Response, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -36,6 +40,49 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "frontend", "data")
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 tile_sources = {}
+MODEL_PATH = os.environ.get("HISTOMICS_TUMOR_MODEL", os.path.join(BASE_DIR, "models", "best.pt"))
+
+if __package__:
+    from .tumor_prediction import predict_tumor
+else:
+    from tumor_prediction import predict_tumor
+
+
+class TumorPredictionRequest(BaseModel):
+    type: Literal["rectangle", "polygon"]
+    points: list[list[FiniteFloat]] = Field(min_length=2, max_length=10000)
+    input_size: int = Field(default=512, ge=64, le=1024, strict=True)
+    padding: int = Field(default=32, ge=0, le=4096, strict=True)
+    threshold: FiniteFloat = Field(default=0.5, gt=0, lt=1)
+    mean: list[FiniteFloat] = Field(default=[0.485, 0.456, 0.406], min_length=3, max_length=3)
+    std: list[FiniteFloat] = Field(default=[0.229, 0.224, 0.225], min_length=3, max_length=3)
+
+
+@app.post("/api/v1/slide/{filename}/predict-tumor")
+def predict_slide_tumor(filename: str, request: TumorPredictionRequest):
+    if filename != os.path.basename(filename) or "\\" in filename or filename in (".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid slide filename.")
+    if any(value <= 0 for value in request.std):
+        raise HTTPException(status_code=422, detail="Normalization std values must be positive.")
+    if not os.path.isfile(MODEL_PATH):
+        raise HTTPException(
+            status_code=503,
+            detail="Tumor model missing. Configure HISTOMICS_TUMOR_MODEL on the server.",
+        )
+    ts = get_tile_source(filename)
+    try:
+        return predict_tumor(ts, request, MODEL_PATH)
+    except ImportError as exc:
+        logging.exception("Tumor model dependencies or architecture are unavailable")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Tumor dependency unavailable: {exc}. Install compatible torch/torchvision, numpy, Pillow and the model's Python architecture module.",
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except (OSError, RuntimeError, AttributeError, TypeError, EOFError, pickle.UnpicklingError) as exc:
+        logging.exception("Tumor inference failed")
+        raise HTTPException(status_code=500, detail="Tumor inference failed. Check the model format/architecture and server logs.") from exc
 
 
 def get_tile_source(filename: str):

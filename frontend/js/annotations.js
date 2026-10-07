@@ -721,7 +721,8 @@ class AnnotationManager {
       const strokeWidth = isSelected ? 3 : 2;
       const strokeOpacity = typeof ann.strokeOpacity === 'number' ? ann.strokeOpacity : this.globalStrokeOpacity;
       const baseFillOpacity = typeof ann.fillOpacity === 'number' ? ann.fillOpacity : this.globalFillOpacity;
-      const fillOpacity = isSelected ? Math.min(1.0, baseFillOpacity + 0.2) : baseFillOpacity;
+      const hasPrediction = this.renderPrediction(ann, baseFillOpacity);
+      const fillOpacity = hasPrediction ? 0 : (isSelected ? Math.min(1.0, baseFillOpacity + 0.2) : baseFillOpacity);
 
       if (ann.type === 'rectangle') {
         const sp1 = this.viewerManager.imageToScreen({ x: ann.points[0][0], y: ann.points[0][1] });
@@ -844,6 +845,48 @@ class AnnotationManager {
         });
       }
     }
+  }
+
+  renderPrediction(ann, opacity) {
+    const prediction = ann.prediction;
+    if (!prediction || prediction.slideFilename !== this.viewerManager.currentSlideFilename) return false;
+    const bounds = prediction.bounds;
+    if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(prediction.mask) ||
+        !bounds || ![bounds.left, bounds.top, bounds.width, bounds.height].every(Number.isFinite) ||
+        bounds.width <= 0 || bounds.height <= 0) {
+      console.warn('Invalid imported tumor prediction; retaining the original annotation fill:', ann.id);
+      return false;
+    }
+    const start = this.viewerManager.imageToScreen({ x: bounds.left, y: bounds.top });
+    const end = this.viewerManager.imageToScreen({ x: bounds.left + bounds.width, y: bounds.top + bounds.height });
+    const image = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+    const clip = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+    const clipId = `prediction-clip-${this.svg.childElementCount}`;
+    clip.setAttribute('id', clipId);
+    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    let points = ann.points;
+    if (ann.type === 'rectangle') {
+      const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+      points = [[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.min(...ys)],
+        [Math.max(...xs), Math.max(...ys)], [Math.min(...xs), Math.max(...ys)]];
+    }
+    polygon.setAttribute('points', points.map(p => {
+      const screen = this.viewerManager.imageToScreen({ x: p[0], y: p[1] });
+      return `${screen.x},${screen.y}`;
+    }).join(' '));
+    clip.appendChild(polygon);
+    this.svg.appendChild(clip);
+    image.setAttribute('clip-path', `url(#${clipId})`);
+    image.setAttribute('href', prediction.mask);
+    image.setAttribute('x', start.x);
+    image.setAttribute('y', start.y);
+    image.setAttribute('width', end.x - start.x);
+    image.setAttribute('height', end.y - start.y);
+    image.setAttribute('preserveAspectRatio', 'none');
+    image.setAttribute('opacity', opacity);
+    image.setAttribute('pointer-events', 'none');
+    this.svg.appendChild(image);
+    return true;
   }
 }
 

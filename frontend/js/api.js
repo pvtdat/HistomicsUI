@@ -50,8 +50,9 @@ class PathologyAPI {
           const remoteMeta = await res.json();
           this.isBackendAvailable = true;
           return {
-            id: "tcga-a2-a0st-full-svs",
+            id: slideId,
             name: remoteMeta.name,
+            slideFilename: filename,
             dimensions: `${remoteMeta.width.toLocaleString()} × ${remoteMeta.height.toLocaleString()} px`,
             width: remoteMeta.width,
             height: remoteMeta.height,
@@ -127,7 +128,26 @@ class PathologyAPI {
       );
     } catch (e) {
       console.warn("Could not save annotations to localStorage:", e);
+      alert("Không thể lưu annotation trên trình duyệt (có thể đã hết dung lượng). Hãy Export JSON để giữ kết quả.");
     }
+  }
+
+  static async predictTumor(filename, annotation, settings) {
+    const res = await fetch(`/api/v1/slide/${encodeURIComponent(filename)}/predict-tumor`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: annotation.type, points: annotation.points, ...settings })
+    });
+    if (!res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const error = await res.json();
+        const detail = typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail);
+        throw new Error(detail || `Prediction failed (HTTP ${res.status}).`);
+      }
+      throw new Error(`Prediction failed (HTTP ${res.status}). Start the Python backend.`);
+    }
+    return res.json();
   }
 
   static getSampleDemoAnnotations(slideId) {

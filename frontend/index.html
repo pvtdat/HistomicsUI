@@ -697,6 +697,33 @@
                 </div>
 
                 <div class="form-actions">
+                  <fieldset id="tumorPredictionControls" class="prediction-controls">
+                    <legend>Predict tumor</legend>
+                    <div class="form-group">
+                      <label for="predictInputSize">Input size (64-1024; BCSS: multiple of 32)</label>
+                      <input id="predictInputSize" class="form-control" type="number" min="64" max="1024" step="1" value="512" required />
+                    </div>
+                    <div class="form-group">
+                      <label for="predictPadding">Padding (level-0 pixels)</label>
+                      <input id="predictPadding" class="form-control" type="number" min="0" max="4096" step="1" value="32" required />
+                    </div>
+                    <div class="form-group">
+                      <label for="predictThreshold">Tumor probability threshold</label>
+                      <input id="predictThreshold" class="form-control" type="number" min="0.01" max="0.99" step="0.01" value="0.5" required />
+                    </div>
+                    <div class="form-group">
+                      <label for="predictMean">Normalize mean (RGB)</label>
+                      <input id="predictMean" class="form-control" value="0.485, 0.456, 0.406" required />
+                    </div>
+                    <div class="form-group">
+                      <label for="predictStd">Normalize std (RGB, positive)</label>
+                      <input id="predictStd" class="form-control" value="0.229, 0.224, 0.225" required />
+                    </div>
+                    <button type="button" id="btnPredictTumor" class="btn btn-secondary full-width">Predict tumor</button>
+                    <button type="button" id="btnClearPrediction" class="btn btn-secondary full-width hidden">Clear prediction</button>
+                  </fieldset>
+                  <p id="predictionStatus" class="prediction-status" role="status" aria-live="polite"></p>
+                  <p class="prediction-status">Research use only. Not a clinical diagnosis.</p>
                   <button
                     type="button"
                     id="btnDeleteCurrent"

@@ -55,6 +55,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load Slide Routine
   async function loadSlide(slideId) {
     viewerManager.currentSlideId = slideId;
+    viewerManager.currentSlideFilename = null;
+    annotationManager.selectAnnotation(null);
 
     // 1. Fetch metadata
     const meta = await PathologyAPI.getSlideMetadata(slideId);
@@ -82,6 +84,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
     annotationManager.annotations = annList;
+    annotationManager.undoStack = [];
+    annotationManager.redoStack = [];
+    annotationManager.updateUndoRedoButtons();
     annotationManager.selectedId = null;
     annotationManager.autoDetectOffset();
     annotationManager.render();
@@ -131,6 +136,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               const meta = {
                 id: file.name,
                 name: file.name,
+                slideFilename: data.filename,
                 dimensions: `${remoteMeta.width.toLocaleString()} × ${remoteMeta.height.toLocaleString()} px`,
                 width: remoteMeta.width,
                 height: remoteMeta.height,
@@ -156,7 +162,13 @@ document.addEventListener('DOMContentLoaded', async () => {
               if (statusMPP) statusMPP.textContent = `${meta.mpp} μm`;
 
               viewerManager.loadSlide(meta, meta.tileSourceUrl);
+              annotationManager.annotations = await PathologyAPI.getAnnotations(meta.id);
+              annotationManager.undoStack = [];
+              annotationManager.redoStack = [];
+              annotationManager.updateUndoRedoButtons();
+              annotationManager.selectAnnotation(null);
               annotationManager.render();
+              sidebarController.renderAnnotationList(annotationManager.annotations);
               return;
             }
           }
@@ -193,6 +205,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (statusMPP) statusMPP.textContent = `${customMeta.mpp} μm`;
 
         viewerManager.loadSlide(customMeta, { type: 'image', url: objectUrl });
+        annotationManager.selectAnnotation(null);
         
         if (annotationManager.annotations.length > 0) {
           annotationManager.autoDetectOffset();
